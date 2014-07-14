@@ -4,8 +4,8 @@ LDFLAGS=-lpcsclite #-lssl
 
 #PKG_CONFIG_PATH=/home/cyc0/Projects/smartcards/pcsc-lite-1.8.11/build/lib/pkgconfig
 
-LIB=-L"/home/cyc0/Projects/smartcards/pcsc-lite-1.8.11/build/lib"
-INC=-I"/home/cyc0/Projects/smartcards/pcsc-lite-1.8.11/build/include/PCSC" -I"$(shell "pwd")"
+LIB=-L"$(shell "pwd")/../pcsc-lite-1.8.11/build/lib"
+INC=-I"$(shell "pwd")/../pcsc-lite-1.8.11/build/include/PCSC" -I"$(shell "pwd")"
 
 #asn1.c
 COMMON_DEPS= errors.c common.c apdu.c iso7816.c openpgp.c card.c pcsc-wrapper.c
