@@ -12,15 +12,6 @@
 
 // #include "asn1.h"
 
-u8* ushort2bebytes(u8 *buf, unsigned short x)
-{
-    if (buf != NULL) {
-        buf[1] = (u8) (x & 0xff);
-        buf[0] = (u8) ((x >> 8) & 0xff);
-    }  
-    return buf;               
-}
-
 /* Calculates the length of the encoded APDU in octets.
   *  @param  apdu   the APDU
   *  @param  proto  the desired protocol

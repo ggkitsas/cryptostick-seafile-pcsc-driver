@@ -1,6 +1,7 @@
 #bins
 verify
-get-public-key
+get_public_key
 decipher
 
 tags
+*.swp

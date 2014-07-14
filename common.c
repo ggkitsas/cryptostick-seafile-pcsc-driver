@@ -9,6 +9,15 @@
 #include "common.h"
 #include "asn1.h"
 
+u8* ushort2bebytes(u8 *buf, unsigned short x)
+{
+    if (buf != NULL) {
+        buf[1] = (u8) (x & 0xff);      
+        buf[0] = (u8) ((x >> 8) & 0xff);
+    }  
+    return buf;    
+}
+
 void sc_mem_clear(void *ptr, size_t len)
 {
 #ifdef ENABLE_OPENSSL         
