@@ -851,6 +851,7 @@ static int part10_build_verify_pin_block(struct sc_reader *reader, u8 * buf, siz
         tmp |= SC_CCID_PIN_ENCODING_ASCII;                                                                                                                                                                                             
 
         /* if the effective PIN length offset is specified, use it */ 
+        printf("%s:%d length_offset=%lu\n",__FILE__, __LINE__, data->pin1.length_offset);
         if (data->pin1.length_offset > 4) {
             tmp |= SC_CCID_PIN_UNITS_BYTES;
             tmp |= (data->pin1.length_offset - 5) << 3;                                                                                                                                                                                
@@ -911,6 +912,7 @@ static int part10_build_verify_pin_block(struct sc_reader *reader, u8 * buf, siz
     pin_verify->abData[offset++] = apdu->p1;
     pin_verify->abData[offset++] = apdu->p2;
 
+    printf("%s:%d cla=%.2x ins=%.2x p1=%.2x p2=%.2x\n",__FILE__, __LINE__, apdu->cla, apdu->ins, apdu->p1, apdu->p2);
     /* Copy data if not Case 1 */
     if (data->pin1.length_offset != 4) {
         pin_verify->abData[offset++] = apdu->lc;
