@@ -1,0 +1,37 @@
+    # The following section shows definitions for PC/SC readers.
+    reader_driver pcsc {
+        # Limit command and response sizes.
+        # Default: n/a
+        # max_send_size = 255;
+        # max_recv_size = 256;
+        #
+        # Connect to reader in exclusive mode?
+        # Default: false
+        # connect_exclusive = true;
+        #
+        # What to do when disconnecting from a card (SCardDisconnect)
+        # Valid values: leave, reset, unpower.
+        # Default: reset
+        # disconnect_action = unpower;
+        #
+        # What to do at the end of a transaction (SCardEndTransaction)
+        # Valid values: leave, reset, unpower.
+        # Default: leave
+        # transaction_end_action = reset;
+        #
+        # What to do when reconnection to a card (SCardReconnect)
+        # Valid values: leave, reset, unpower.
+        # Note that this affects only the internal reconnect (after a SCARD_W_RESET_CARD).
+        # A forced reset via sc_reset() always does a full powerup.
+        # Default: leave
+        # reconnect_action = reset;
+        #
+        # Enable pinpad if detected (PC/SC v2.0.2 Part 10)
+        # Default: true
+        # enable_pinpad = false;
+        #
+        # Use specific pcsc provider.
+        # Default: @DEFAULT_PCSC_PROVIDER@
+        # provider_library = @DEFAULT_PCSC_PROVIDER@
+    }
+
