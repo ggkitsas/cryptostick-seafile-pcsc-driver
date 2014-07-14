@@ -43,7 +43,7 @@ int card_init(card_t *card)
 }
 
 
-static card_t * sc_card_new()
+static card_t * card_new()
 {
     card_t *card;
 
@@ -54,14 +54,14 @@ static card_t * sc_card_new()
     return card;
 }
 
-static void sc_card_free(card_t *card)                                                                                                                                                                                              
+static void card_free(card_t *card)                                                                                                                                                                                              
 {
     sc_mem_clear(card, sizeof(*card));
     free(card);
 }
 
 
-int sc_connect_card(sc_reader_t *reader, card_t **card_out)                                                                                                                                                                         
+int connect_card(sc_reader_t *reader, card_t **card_out)                                                                                                                                                                         
 {
     card_t *card;
     struct sc_card_driver *driver; 
@@ -70,7 +70,7 @@ int sc_connect_card(sc_reader_t *reader, card_t **card_out)
     if (card_out == NULL || reader == NULL)
         return SC_ERROR_INVALID_ARGUMENTS;
 
-    card = sc_card_new();
+    card = card_new();
     if (card == NULL)
         LOG_FUNC_RETURN(SC_ERROR_OUT_OF_MEMORY);
     r = pcsc_connect(reader); 
@@ -183,6 +183,6 @@ err:
     if (connected)
         pcsc_disconnect(reader);
     if (card != NULL)
-        sc_card_free(card);
+        card_free(card);
     LOG_FUNC_RETURN(r);
 }

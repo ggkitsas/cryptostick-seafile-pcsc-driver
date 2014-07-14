@@ -93,7 +93,7 @@ typedef struct _card_t {
 
 
 int card_init(card_t *card);
-int sc_connect_card(sc_reader_t *reader, card_t **card_out);
+int connect_card(sc_reader_t *reader, card_t **card_out);
 
 
 #ifdef __cplusplus

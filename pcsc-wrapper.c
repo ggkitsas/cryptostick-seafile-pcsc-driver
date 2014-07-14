@@ -260,7 +260,7 @@ int pcsc_transmit(sc_reader_t *reader, apdu_t *apdu)
         goto out;
     if (reader->name)
         printf("reader '%s'\n", reader->name); 
-//    sc_apdu_log(reader->ctx, SC_LOG_DEBUG_NORMAL, sbuf, ssize, 1);
+    apdu_log(sbuf, ssize, 1);
 
     r = pcsc_internal_transmit(reader, sbuf, ssize,
                 rbuf, &rsize, apdu->control); 
@@ -270,9 +270,9 @@ int pcsc_transmit(sc_reader_t *reader, apdu_t *apdu)
         printf("unable to transmit\n");
         goto out;
     }  
-//    sc_apdu_log(reader->ctx, SC_LOG_DEBUG_NORMAL, rbuf, rsize, 0);
+    apdu_log(rbuf, rsize, 0);
     /* set response */
-    r = sc_apdu_set_resp(apdu, rbuf, rsize);
+    r = apdu_set_resp(apdu, rbuf, rsize);
 out:   
     if (sbuf != NULL) {
         sc_mem_clear(sbuf, ssize);     

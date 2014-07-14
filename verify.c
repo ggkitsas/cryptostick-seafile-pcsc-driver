@@ -18,7 +18,7 @@ int main()
     pcsc_detect_readers(readerList);
 
     card_t* card;
-    sc_connect_card(readerList->root->reader, &card);
+    connect_card(readerList->root->reader, &card);
     card_init(card);
 
     printf("Serial No: (len=%lu) ", card->serialnr.len);

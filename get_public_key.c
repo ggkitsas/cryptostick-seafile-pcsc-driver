@@ -16,7 +16,7 @@ int main()
 /*
     card_t card;
     card.cla = 0x00;
-    sc_connect_card();
+    connect_card();
     card_init(&card);
 */
 
@@ -28,7 +28,7 @@ int main()
 
     card_t* card;
     printf("%s %d\n",__FILE__, __LINE__);
-    sc_connect_card(readerList->root->reader, &card);
+    connect_card(readerList->root->reader, &card);
     printf("%s %d\n",__FILE__, __LINE__);
     card_init(card);
 
