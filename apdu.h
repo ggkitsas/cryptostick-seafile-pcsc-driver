@@ -61,8 +61,6 @@ typedef struct _apdu_t {
 } apdu_t;
 
 
-u8* ushort2bebytes(u8 *buf, unsigned short x);
-
 size_t sc_apdu_get_length(const apdu_t *apdu, unsigned int proto);
 
 int sc_apdu2bytes(const apdu_t *apdu,
