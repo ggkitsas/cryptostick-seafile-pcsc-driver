@@ -1,3 +1,6 @@
+#bins
 verify
 get-public-key
 decipher
+
+tags
