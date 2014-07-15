@@ -6,7 +6,6 @@
 #include "card.h"
 
 int csListDevices(reader_list* readerList);
-int cardInit(card_t *card);
 int csGetPublicKey(card_t *card, unsigned char* public_key);
 int csGetPublicKey(card_t *card, unsigned char* public_key);
 int csVerifyPIN(card_t *card, unsigned char* pin);

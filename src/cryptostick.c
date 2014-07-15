@@ -16,13 +16,16 @@ int csListDevices(reader_list* readerList)
         return r;
     }
 
+    
+    int i;
+    sc_reader_t* tmp_reader;
+    tmp_reader = readerList->root->reader;
+    for(i=0;i<readerList->readerNum;i++)
+    {
+        connect_card(tmp_reader, &card);
+        card_init(card);
+    }
     return SC_SUCCESS;
-}
-
-int cardInit(card_t *card)
-{
-    card_init(card);
-    return 0;
 }
 
 int csGetSerialNo(card_t *card, unsigned char serialno[6])
