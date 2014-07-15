@@ -37,8 +37,8 @@ int main()
     printf("%s %d\n",__FILE__, __LINE__);
     card_init(card);
 
-    printf("Serial No: (len=%lu) ", card->serialnr.len);
-    for(i=0;i<card->serialnr.len;i++)
+    printf("Serial No: (len=%lu) ", card->serialnr.len - 2);
+    for(i=2;i<card->serialnr.len;i++)
         printf("%.2x ", card->serialnr.value[i]);
     printf("\n");
 
