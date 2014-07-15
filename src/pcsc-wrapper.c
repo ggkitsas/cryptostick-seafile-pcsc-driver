@@ -616,20 +616,21 @@ int pcsc_detect_readers(reader_list* readerList)
 
     int r;
     int i;
-    int ret = SC_ERROR_INTERNAL;
+    int ret = SC_SUCCESS;
 
     r = SCardEstablishContext(SCARD_SCOPE_USER, NULL, NULL, &cardCtx);
-    if ( !r==SCARD_S_SUCCESS) {        
+    if (!r==SCARD_S_SUCCESS) {        
         printf("%s %d\n" ,__FILE__, __LINE__);
         printf("SCardEstablishContext failed\n");
-        return -1;
+        ret = pcsc_to_opensc_error(r);
+        goto out;
     }  
 
     r = SCardListReaders(cardCtx, NULL, NULL, (LPDWORD) &reader_buf_size);
     if (!r==SCARD_S_SUCCESS) {
-        printf("%s %d\n" ,__FILE__, __LINE__);
+        printf("%s %d r = %x\n" ,__FILE__, __LINE__, r);
         printf("SCardListReaders failed\n");
-        ret = pcsc_to_opensc_error(r);
+        ret = SC_ERROR_NO_READERS_FOUND;
         goto out;
     }  
 
@@ -703,7 +704,7 @@ int pcsc_detect_readers(reader_list* readerList)
 
         if (r == SCARD_S_SUCCESS) {
             detect_reader_features(reader, priv->pcsc_card);
-            SCardDisconnect(priv->pcsc_card, SCARD_LEAVE_CARD);
+            r = SCardDisconnect(priv->pcsc_card, SCARD_LEAVE_CARD);
         }
 
         continue;

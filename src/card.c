@@ -70,11 +70,13 @@ int connect_card(sc_reader_t *reader, card_t **card_out)
     if (card_out == NULL || reader == NULL)
         return SC_ERROR_INVALID_ARGUMENTS;
 
+    printf("%s %d\n",__FILE__, __LINE__);
     card = card_new();
     if (card == NULL)
         LOG_FUNC_RETURN(SC_ERROR_OUT_OF_MEMORY);
+
     r = pcsc_connect(reader); 
-    if (r)
+    if (r!=SC_SUCCESS)
         goto err;
 
     connected = 1;

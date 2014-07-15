@@ -15,7 +15,11 @@ int main()
     card_init(&card);
 */
     reader_list* readerList = (reader_list*)malloc(sizeof(reader_list));
-    pcsc_detect_readers(readerList);
+    r = pcsc_detect_readers(readerList);
+    if(!r == SC_SUCCESS) {
+        printf("%s\n", sc_strerror(r));
+        return -1;
+    }
 
     card_t* card;
     connect_card(readerList->root->reader, &card);
