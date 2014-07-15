@@ -7,7 +7,7 @@ DEMOS_DIR=$(CURDIR)/demos
 LIB=-L"$(shell "pwd")/../pcsc-lite-1.8.11/build/lib"
 INC=-I"$(shell "pwd")/../pcsc-lite-1.8.11/build/include/PCSC" -I"$(shell "pwd")/inc"
 
-COMMON_DEPS= errors.c common.c apdu.c iso7816.c openpgp.c card.c pcsc-wrapper.c
+COMMON_DEPS= errors.c common.c apdu.c iso7816.c openpgp.c card.c pcsc-wrapper.c cryptostick.c
 
 .PHONY: verify get_public_key decipher all
 
