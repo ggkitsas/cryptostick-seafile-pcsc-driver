@@ -2,6 +2,7 @@
 verify
 get_public_key
 decipher
+full_demo
 
 tags
 *.swp
