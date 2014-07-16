@@ -116,6 +116,8 @@ void detect_reader_features(sc_reader_t *reader, SCARDHANDLE card_handle);
 
 int pcsc_connect(sc_reader_t *reader);
 
+int pcsc_reconnect(sc_reader_t * reader, DWORD action);
+
 int pcsc_disconnect(sc_reader_t * reader);
 
 // TODO: Return the list of readers, not the last one

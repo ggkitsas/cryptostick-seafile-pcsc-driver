@@ -540,6 +540,8 @@ int pcsc_connect(sc_reader_t *reader)
     struct pcsc_private_data *priv = GET_PRIV_DATA(reader);                                                                                                                                                                            
     int r;
 
+    SCardBeginTransaction(priv->gpriv->pcsc_ctx);
+    
     r = refresh_attributes(reader);
     if (r != SC_SUCCESS)
         return r;
@@ -588,11 +590,49 @@ int pcsc_connect(sc_reader_t *reader)
     return SC_SUCCESS;
 }
 
+int pcsc_reconnect(sc_reader_t * reader, DWORD action)
+{
+    DWORD active_proto = opensc_proto_to_pcsc(reader->active_protocol),
+          tmp, protocol = SCARD_PROTOCOL_T0 | SCARD_PROTOCOL_T1;
+    LONG rv;
+    struct pcsc_private_data *priv = GET_PRIV_DATA(reader);
+    int r;
+
+    printf("Reconnecting to the card...\n");
+
+    r = refresh_attributes(reader);
+    if (r!= SC_SUCCESS)
+        return r;
+
+    if (!(reader->flags & SC_READER_CARD_PRESENT))
+        return SC_ERROR_CARD_NOT_PRESENT;
+
+    /* Check if we need a specific protocol. refresh_attributes above already sets the ATR */
+//    if (check_forced_protocol( &reader->atr, &tmp))
+//        protocol = tmp;
+
+    /* reconnect always unlocks transaction */
+//    priv->locked = 0;
+
+    rv = SCardReconnect(priv->pcsc_card,
+                priv->gpriv->connect_exclusive ? SCARD_SHARE_EXCLUSIVE : SCARD_SHARE_SHARED,
+                protocol, action, &active_proto);
+
+    if (rv != SCARD_S_SUCCESS) {
+        return pcsc_to_opensc_error(rv);
+    }
+
+    reader->active_protocol = pcsc_proto_to_opensc(active_proto);
+    return pcsc_to_opensc_error(rv);
+}
+
+
 int pcsc_disconnect(sc_reader_t * reader)
 {
     struct pcsc_private_data *priv = GET_PRIV_DATA(reader);
 
     SCardDisconnect(priv->pcsc_card, priv->gpriv->disconnect_action);
+    SCardEndTransaction(priv->pcsc_card, priv->gpriv->transaction_end_action);
     reader->flags = 0;
     return SC_SUCCESS;
 }
