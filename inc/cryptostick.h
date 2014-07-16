@@ -5,7 +5,18 @@
 #include "pcsc-wrapper.h"
 #include "card.h"
 
-int csListDevices(reader_list* readerList);
+typedef struct _cs_list_node {
+    card_t* card;
+    struct _cs_list_node* next;
+} cs_list_node;
+
+typedef struct cs_list {
+    cs_list_node* root;
+    size_t numOfNodes;
+} cs_list;
+
+int csListDevices(cs_list &cryptosticks /*reader_list* readerList*/);
+int csGetSerialNo(card_t *card, unsigned char serialno[6]);
 int csGetPublicKey(card_t *card, unsigned char* public_key);
 int csGetPublicKey(card_t *card, unsigned char* public_key);
 int csVerifyPIN(card_t *card, unsigned char* pin);

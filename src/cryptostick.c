@@ -5,11 +5,12 @@
 
 #include "cryptostick.h"
 
-int csListDevices(reader_list* readerList)
+int csListDevices(cs_list &cryptosticks)
 {
     int r;
 
-    readerList = (reader_list*)malloc(sizeof(reader_list));
+    reader_list* readerList = (reader_list*)malloc(sizeof(reader_list));
+
     r = pcsc_detect_readers(readerList);
     if ( ! r == SC_SUCCESS) {
         free(readerList);
@@ -18,13 +19,37 @@ int csListDevices(reader_list* readerList)
 
     
     int i;
-    sc_reader_t* tmp_reader;
-    tmp_reader = readerList->root->reader;
-    for(i=0;i<readerList->readerNum;i++)
-    {
-        connect_card(tmp_reader, &card);
-        card_init(card);
+    cryptosticks.numOfNodes = 0;
+    cs_list_node* csCurrentNode;
+    cs_list_node* previousNode;
+    reader_list_node* readerCurrentNode = readerList->root;
+
+    for( i=0; i<readerList->readerNum; i++)
+    {   
+        csCurrentNode = (cs_list_node*)malloc(sizeof(cs_list_node));
+        r = connect_card(readerCurrentNode->reader, &(csCurrentNode->card));
+        if(! r == SC_SUCCESS)
+            continue;
+
+        r = card_init(csCurrentNode->card);
+        if(! r == SC_SUCCESS)
+            continue;
+
+        if(i == 0) {
+            cryptosticks.root = csCurrentNode;
+            previousNode = cryptosticks.root;
+        } else {
+            previousNode->next = csCurrentNode;
+            previousNode = previousNode->next;
+        }
+        cryptosticks.numOfNodes++;
+      
+
+        if(i != cryptosticks.numOfNodes -1) {
+            readerCurrentNode = readerCurrentNode->next;
+        }
     }
+
     return SC_SUCCESS;
 }
 
@@ -32,11 +57,8 @@ int csGetSerialNo(card_t *card, unsigned char serialno[6])
 {
     int r;
 
-    connect_card(card->reader, &card);
     pcsc_connect(card->reader);
-
     memcpy(serialno, &(card->serialnr.value[2]), 6);
-
     pcsc_disconnect(card->reader);
     return 0;
 }
@@ -45,7 +67,6 @@ int csGetPublicKey(card_t *card, unsigned char* public_key)
 {
     int r;
 
-    connect_card(card->reader, &card);
     pcsc_connect(card->reader);
     
     apdu_t apdu;
@@ -88,8 +109,11 @@ int csVerifyPIN(card_t *card, unsigned char* pin)
 {
     int r;
 
-    connect_card(card->reader, &card);
-    pcsc_connect(card->reader);
+    r = pcsc_connect(card->reader);
+    if (r == SC_ERROR_CARD_REMOVED)
+        r = pcsc_reconnect(card->reader, SCARD_UNPOWER_CARD);
+    if (! r == SC_SUCCESS)
+        return -1;
 
     pcsc_disconnect(card->reader);
     return 0;
@@ -100,8 +124,9 @@ int csDecipher(card_t *card, unsigned char* input, size_t in_len,
 {
     int r;
 
-    connect_card(card->reader, &card);
-    pcsc_connect(card->reader);
+    r = pcsc_connect(card->reader);
+//    if (! r == SC_SUCCESS)
+//        return -1;
 
     u8 *temp = NULL;
     apdu_t   apdu;
@@ -134,6 +159,5 @@ int csDecipher(card_t *card, unsigned char* input, size_t in_len,
         pcsc_disconnect(card->reader);
 
     pcsc_disconnect(card->reader);
-
     LOG_TEST_RET(r, "Card returned error\n");
 }
