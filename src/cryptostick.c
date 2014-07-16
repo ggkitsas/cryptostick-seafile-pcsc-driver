@@ -56,10 +56,7 @@ int csListDevices(cs_list &cryptosticks)
 int csGetSerialNo(card_t *card, unsigned char serialno[6])
 {
     int r;
-
-    pcsc_connect(card->reader);
     memcpy(serialno, &(card->serialnr.value[2]), 6);
-    pcsc_disconnect(card->reader);
     return 0;
 }
 
