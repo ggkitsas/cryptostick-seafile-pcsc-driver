@@ -91,8 +91,6 @@ int refresh_attributes(sc_reader_t *reader)
     DWORD state, prev_state;
     LONG rv;
 
-//    sc_debug(reader->ctx, SC_LOG_DEBUG_NORMAL, "%s check", reader->name);
-
     if (priv->reader_state.szReader == NULL) {
         priv->reader_state.szReader = reader->name;
         priv->reader_state.dwCurrentState = SCARD_STATE_UNAWARE;
@@ -111,21 +109,17 @@ int refresh_attributes(sc_reader_t *reader)
             reader->flags &= ~SC_READER_CARD_CHANGED;
             SC_FUNC_RETURN(SC_SUCCESS);
         }
-        // PCSC_TRACE(reader, "SCardGetStatusChange failed", rv);
         printf("%s %d\n",__FILE__, __LINE__);
         return pcsc_to_opensc_error(rv);
     }  
     state = priv->reader_state.dwEventState;
     prev_state = priv->reader_state.dwCurrentState;
 
-//    sc_debug(reader->ctx, SC_LOG_DEBUG_NORMAL, "current  state: 0x%08X", state);
-//    sc_debug(reader->ctx, SC_LOG_DEBUG_NORMAL, "previous state: 0x%08X", prev_state);
-
     if (state & SCARD_STATE_UNKNOWN) {
         /* State means "reader unknown", but we have listed it at least once.
- *          * There can be no cards in this reader.
- *                   * XXX: We'll hit it again, as no readers are removed currently.
- *                            */
+         * There can be no cards in this reader.
+         * XXX: We'll hit it again, as no readers are removed currently.
+        */
         reader->flags &= ~(SC_READER_CARD_PRESENT);
         printf("%s %d\n",__FILE__, __LINE__);
         return SC_ERROR_READER_DETACHED;
@@ -156,10 +150,9 @@ int refresh_attributes(sc_reader_t *reader)
                 reader->flags |= SC_READER_CARD_CHANGED;
             } else {
                 /* Check if the card handle is still valid. If the card changed,
- *                  * the handle will be invalid. */
+                 * the handle will be invalid. */
                 DWORD readers_len = 0, cstate, prot, atr_len = SC_MAX_ATR_SIZE;
                 unsigned char atr[SC_MAX_ATR_SIZE];
-                //rv = priv->gpriv->SCardStatus(priv->pcsc_card, NULL, &readers_len, &cstate, &prot, atr, &atr_len);
                 rv = SCardStatus(priv->pcsc_card, NULL, &readers_len, &cstate, &prot, atr, &atr_len);
                 if (rv == (LONG)SCARD_W_REMOVED_CARD)
                     reader->flags |= SC_READER_CARD_CHANGED;
@@ -172,10 +165,7 @@ int refresh_attributes(sc_reader_t *reader)
         if (old_flags & SC_READER_CARD_PRESENT)
             reader->flags |= SC_READER_CARD_CHANGED;
     }
-//    sc_debug(reader->ctx, SC_LOG_DEBUG_NORMAL, "card %s%s",
-//             reader->flags & SC_READER_CARD_PRESENT ? "present" : "absent",
-//             reader->flags & SC_READER_CARD_CHANGED ? ", changed": "");
-
+    
     return SC_SUCCESS;
 }
 
@@ -215,7 +205,6 @@ int pcsc_internal_transmit(sc_reader_t *reader,
 
     if (rv != SCARD_S_SUCCESS) {
         printf("%s:(%d)\n", __FILE__, __LINE__);
-        // PCSC_TRACE(reader, "SCardTransmit/Control failed", rv);                                                                    
         switch (rv) {         
         case SCARD_W_REMOVED_CARD:         
             return SC_ERROR_CARD_REMOVED;
@@ -287,11 +276,9 @@ out:
 }
 
 
-// int pcsc_init(sc_context_t *ctx)
 int pcsc_init(sc_reader_t* reader, SCARDCONTEXT cardctx)
 {
     struct pcsc_global_private_data *gpriv;
-//    scconf_block *conf_block = NULL;
     int ret = SC_ERROR_INTERNAL;
 
 
@@ -308,94 +295,9 @@ int pcsc_init(sc_reader_t* reader, SCARDCONTEXT cardctx)
     gpriv->reconnect_action = SCARD_LEAVE_CARD;
     gpriv->enable_pinpad = 1;
     gpriv->enable_pace = 1;
-//    gpriv->provider_library = DEFAULT_PCSC_PROVIDER;
-//    gpriv->pcsc_ctx = -1;
     gpriv->pcsc_ctx = cardctx;
     gpriv->pcsc_wait_ctx = -1;
-/*
-    conf_block = sc_get_conf_block(ctx, "reader_driver", "pcsc", 1);
-    if (conf_block) {
-        gpriv->connect_exclusive =
-            scconf_get_bool(conf_block, "connect_exclusive", gpriv->connect_exclusive);
-        gpriv->disconnect_action =
-            pcsc_reset_action(scconf_get_str(conf_block, "disconnect_action", "reset"));
-        gpriv->transaction_end_action =
-            pcsc_reset_action(scconf_get_str(conf_block, "transaction_end_action", "leave"));
-        gpriv->reconnect_action =
-            pcsc_reset_action(scconf_get_str(conf_block, "reconnect_action", "leave"));
-        gpriv->enable_pinpad =
-            scconf_get_bool(conf_block, "enable_pinpad", gpriv->enable_pinpad);
-        gpriv->enable_pace =
-            scconf_get_bool(conf_block, "enable_pace", gpriv->enable_pace);
-        gpriv->provider_library =
-            scconf_get_str(conf_block, "provider_library", gpriv->provider_library);
-    }
-    sc_log(ctx, "PC/SC options: connect_exclusive=%d disconnect_action=%d transaction_end_action=%d reconnect_action=%d enable_pinpad=%d enable_pace=%d",
-        gpriv->connect_exclusive, gpriv->disconnect_action, gpriv->transaction_end_action, gpriv->reconnect_action, gpriv->enable_pinpad, gpriv->enable_pace);
 
-    gpriv->dlhandle = sc_dlopen(gpriv->provider_library);
-    if (gpriv->dlhandle == NULL) {
-        ret = SC_ERROR_CANNOT_LOAD_MODULE;
-        goto out;
-    }
-*/
-/*
-    gpriv->SCardEstablishContext = (SCardEstablishContext_t)sc_dlsym(gpriv->dlhandle, "SCardEstablishContext");
-    gpriv->SCardReleaseContext = (SCardReleaseContext_t)sc_dlsym(gpriv->dlhandle, "SCardReleaseContext");
-    gpriv->SCardConnect = (SCardConnect_t)sc_dlsym(gpriv->dlhandle, "SCardConnect");
-    gpriv->SCardReconnect = (SCardReconnect_t)sc_dlsym(gpriv->dlhandle, "SCardReconnect");
-    gpriv->SCardDisconnect = (SCardDisconnect_t)sc_dlsym(gpriv->dlhandle, "SCardDisconnect");
-    gpriv->SCardBeginTransaction = (SCardBeginTransaction_t)sc_dlsym(gpriv->dlhandle, "SCardBeginTransaction");
-    gpriv->SCardEndTransaction = (SCardEndTransaction_t)sc_dlsym(gpriv->dlhandle, "SCardEndTransaction");
-    gpriv->SCardStatus = (SCardStatus_t)sc_dlsym(gpriv->dlhandle, "SCardStatus");
-    gpriv->SCardGetStatusChange = (SCardGetStatusChange_t)sc_dlsym(gpriv->dlhandle, "SCardGetStatusChange");
-    gpriv->SCardCancel = (SCardCancel_t)sc_dlsym(gpriv->dlhandle, "SCardCancel");
-    gpriv->SCardTransmit = (SCardTransmit_t)sc_dlsym(gpriv->dlhandle, "SCardTransmit");
-    gpriv->SCardListReaders = (SCardListReaders_t)sc_dlsym(gpriv->dlhandle, "SCardListReaders");
-
-    if (gpriv->SCardConnect == NULL)
-        gpriv->SCardConnect = (SCardConnect_t)sc_dlsym(gpriv->dlhandle, "SCardConnectA");
-    if (gpriv->SCardStatus == NULL)
-        gpriv->SCardStatus = (SCardStatus_t)sc_dlsym(gpriv->dlhandle, "SCardStatusA");
-    if (gpriv->SCardGetStatusChange == NULL)
-        gpriv->SCardGetStatusChange = (SCardGetStatusChange_t)sc_dlsym(gpriv->dlhandle, "SCardGetStatusChangeA");
-    if (gpriv->SCardListReaders == NULL)
-        gpriv->SCardListReaders = (SCardListReaders_t)sc_dlsym(gpriv->dlhandle, "SCardListReadersA");
-*/
-
-    /* If we have SCardGetAttrib it is correct API */
-/*    if (sc_dlsym(gpriv->dlhandle, "SCardGetAttrib") != NULL) {
-#ifdef __APPLE__
-        gpriv->SCardControl = (SCardControl_t)sc_dlsym(gpriv->dlhandle, "SCardControl132");
-#endif
-        if (gpriv->SCardControl == NULL) {
-            gpriv->SCardControl = (SCardControl_t)sc_dlsym(gpriv->dlhandle, "SCardControl");
-        }
-    }
-    else {
-        gpriv->SCardControlOLD = (SCardControlOLD_t)sc_dlsym(gpriv->dlhandle, "SCardControl");
-    }
-*/
-/*
-    if (
-        gpriv->SCardReleaseContext == NULL ||
-        gpriv->SCardConnect == NULL ||
-        gpriv->SCardReconnect == NULL ||
-        gpriv->SCardDisconnect == NULL ||
-        gpriv->SCardBeginTransaction == NULL ||
-        gpriv->SCardEndTransaction == NULL ||
-        gpriv->SCardStatus == NULL ||
-        gpriv->SCardGetStatusChange == NULL ||
-        gpriv->SCardCancel == NULL ||
-        (gpriv->SCardControl == NULL && gpriv->SCardControlOLD == NULL) ||
-        gpriv->SCardTransmit == NULL ||
-        gpriv->SCardListReaders == NULL
-    ) {
-        ret = SC_ERROR_CANNOT_LOAD_MODULE;
-        goto out;
-    }
-*/
-    // ctx->reader_drv_data = gpriv;
     ((pcsc_private_data*)(reader->drv_data))->gpriv = gpriv;
 
     gpriv = NULL;
@@ -517,19 +419,6 @@ void detect_reader_features(sc_reader_t *reader, SCARDHANDLE card_handle) {
                 printf("Returned PIN properties structure has bad length (%lu/%lu)\n", rcount, sizeof(PIN_PROPERTIES_STRUCTURE));
         }
     }
-
-/*    if (priv->pace_ioctl) {
-        const char *log_text = "Reader supports PACE";
-        if (priv->gpriv->enable_pace) {
-            reader->capabilities |= part10_detect_pace_capabilities(reader);
-
-            if (reader->capabilities & SC_READER_CAP_PACE_GENERIC)
-                printf("%s", log_text);
-        } else {
-            printf( "%s %s\n", log_text, log_disabled);
-        }
-    }
-*/
 }
 
 int pcsc_connect(sc_reader_t *reader)                                                                                                                                                                                           
@@ -583,9 +472,6 @@ int pcsc_connect(sc_reader_t *reader)
     }  
 */
 
-    /* After connect reader is not locked yet */
-//    priv->locked = 0;
-
     SCardBeginTransaction(priv->gpriv->pcsc_ctx);
 
     return SC_SUCCESS;
@@ -612,9 +498,6 @@ int pcsc_reconnect(sc_reader_t * reader, DWORD action)
 //    if (check_forced_protocol( &reader->atr, &tmp))
 //        protocol = tmp;
 
-    /* reconnect always unlocks transaction */
-//    priv->locked = 0;
-
     rv = SCardReconnect(priv->pcsc_card,
                 priv->gpriv->connect_exclusive ? SCARD_SHARE_EXCLUSIVE : SCARD_SHARE_SHARED,
                 protocol, action, &active_proto);
@@ -639,7 +522,6 @@ int pcsc_disconnect(sc_reader_t * reader)
 }
 
 
-// TODO: Return the list of readers, not the last one
 int pcsc_detect_readers(reader_list* readerList)
 {
     SCARDCONTEXT cardCtx;
@@ -991,34 +873,11 @@ int pcsc_pin_cmd(sc_reader_t *reader, struct sc_pin_cmd_data *data)
     }  
 
     apdu = data->apdu;
-//    switch (data->cmd) {      
-//    case SC_PIN_CMD_VERIFY:  
-/*        if (!(priv->verify_ioctl || (priv->verify_ioctl_start && priv->verify_ioctl_finish))) { 
-            printf("Pinpad reader does not support verification!\n");
-            return SC_ERROR_NOT_SUPPORTED; 
-        }
-*/
-        part10_check_pin_min_max(reader, data);
-        r = part10_build_verify_pin_block(reader, sbuf, &scount, data);
-        if(r == SC_SUCCESS)
-            printf("%s:%d SUCCESS\n",__FILE__, __LINE__);
-        ioctl = priv->verify_ioctl ? priv->verify_ioctl : priv->verify_ioctl_start;
-/*        break;
-    case SC_PIN_CMD_CHANGE:
-    case SC_PIN_CMD_UNBLOCK:
-        if (!(priv->modify_ioctl || (priv->modify_ioctl_start && priv->modify_ioctl_finish))) { 
-            printf("Pinpad reader does not support modification!\n");
-            return SC_ERROR_NOT_SUPPORTED; 
-        }
-        part10_check_pin_min_max(reader, data);
-        r = part10_build_modify_pin_block(reader, sbuf, &scount, data);
-        ioctl = priv->modify_ioctl ? priv->modify_ioctl : priv->modify_ioctl_start;
-        break;
-    default:
-        printf("Unknown PIN command %d\n", data->cmd);
-        return SC_ERROR_NOT_SUPPORTED;
-    }
-*/
+    part10_check_pin_min_max(reader, data);
+    r = part10_build_verify_pin_block(reader, sbuf, &scount, data);
+    if(r == SC_SUCCESS)
+        printf("%s:%d SUCCESS\n",__FILE__, __LINE__);
+    ioctl = priv->verify_ioctl ? priv->verify_ioctl : priv->verify_ioctl_start;
 
     /* If PIN block building failed, we fail too */
     SC_TEST_RET( r, "PC/SC v2 pinpad block building failed!");

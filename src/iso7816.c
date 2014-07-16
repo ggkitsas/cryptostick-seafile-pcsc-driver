@@ -417,39 +417,25 @@ int iso7816_pin_cmd(card_t *card, struct sc_pin_cmd_data *data, int *tries_left)
 	 * whose PIN functions behave "mostly like ISO" except in some
 	 * special circumstances.
 	 */
-//	if (data->apdu == NULL) {
-		r = iso7816_build_pin_apdu(card, &local_apdu, data, sbuf, sizeof(sbuf));
-		if (r < 0)
-			return r;
-		data->apdu = &local_apdu;
-//	}
+    r = iso7816_build_pin_apdu(card, &local_apdu, data, sbuf, sizeof(sbuf));
+    if (r < 0)
+        return r;
+    data->apdu = &local_apdu;
+
 	apdu = data->apdu;
 
-/*	if (!(data->flags & SC_PIN_CMD_USE_PINPAD)) {
-		/* Transmit the APDU to the card */
-/*		r = transmit_apdu(card, apdu);
-
-		/* Clear the buffer - it may contain pins */
-/*		sc_mem_clear(sbuf, sizeof(sbuf));
+    if (data->pin1.offset == 0) {
+        printf("Card driver didn't set PIN offset\n");
+        return SC_ERROR_INVALID_ARGUMENTS;
+    }
+    if (card->reader) {
+        printf("%s:%d \n", __FILE__, __LINE__);
+        r = pcsc_pin_cmd(card->reader, data);
+    }
+    else {
+        printf("Card reader driver does not support PIN entry through reader key pad\n");
+	    r = SC_ERROR_NOT_SUPPORTED;
 	}
-	else {
-		/* Call the reader driver to collect
-		 * the PIN and pass on the APDU to the card */
-		if (data->pin1.offset == 0) {
-			printf("Card driver didn't set PIN offset\n");
-			return SC_ERROR_INVALID_ARGUMENTS;
-		}
-		if (card->reader) {
-			// r = card->reader->ops->perform_verify(card->reader, data);
-            printf("%s:%d \n", __FILE__, __LINE__);
-			r = pcsc_pin_cmd(card->reader, data);
-			/* sw1/sw2 filled in by reader driver */
-		}
-		else {
-			printf("Card reader driver does not support PIN entry through reader key pad\n");
-			r = SC_ERROR_NOT_SUPPORTED;
-		}
-//	}
 
 	/* Don't pass references to local variables up to the caller. */
 	if (data->apdu == &local_apdu)

@@ -25,6 +25,8 @@ int main()
         printf("\nReader name: %s\n", csList.root->card->reader->name);
     }
 
+    unsigned char* pin = (unsigned char*)"123456";
+    csVerifyPIN(csList.root->card, pin);
 
     unsigned char plain[6];
     unsigned char* ciph = (unsigned char*)"abcabc";
