@@ -31,8 +31,8 @@ int main()
     pcsc_connect(card.reader);
 
     u8 *in = (u8*)"blabla";
-    u8 out[8];
-    size_t inlen=8, outlen=8;
+    u8 out[6];
+    size_t inlen=6, outlen=6;
 
 //    struct pgp_priv_data *priv = DRVDATA(&card);
     u8 *temp = NULL;
@@ -63,10 +63,10 @@ int main()
     LOG_TEST_RET(r, "APDU transmit failed\n");
 
     r = check_sw(&card, apdu.sw1, apdu.sw2);
-
     if(r<0)
         pcsc_disconnect(card.reader);
 
+    pcsc_disconnect(card.reader);
     LOG_TEST_RET(r, "Card returned error\n");
 }
 
