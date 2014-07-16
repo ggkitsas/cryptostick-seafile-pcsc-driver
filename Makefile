@@ -9,7 +9,7 @@ INC=-I"$(shell "pwd")/../pcsc-lite-1.8.11/build/include/PCSC" -I"$(shell "pwd")/
 
 COMMON_DEPS= errors.c common.c apdu.c iso7816.c openpgp.c card.c pcsc-wrapper.c cryptostick.c
 
-.PHONY: verify get_public_key decipher all
+.PHONY: verify get_public_key decipher full_demo all
 
 
 get_public_key:
@@ -27,4 +27,9 @@ verify:
 	$(CC) $(CFLAGS) $(INC) $(LIB) -o verify $(COMMON_DEPS) $(DEMOS_DIR)/verify.c $(LDFLAGS) && \
 	mv verify ../
 
-all: verify get_public_key decipher
+full_demo:
+	cd src && \
+	$(CC) $(CFLAGS) $(INC) $(LIB) -o full_demo $(COMMON_DEPS) $(DEMOS_DIR)/full_demo.c $(LDFLAGS) && \
+	mv full_demo ../
+	
+all: verify get_public_key decipher full_demo
