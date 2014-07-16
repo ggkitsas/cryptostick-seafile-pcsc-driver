@@ -64,7 +64,7 @@ int csGetPublicKey(card_t *card, unsigned char* public_key)
 {
     int r;
 
-    pcsc_connect(card->reader);
+//    pcsc_connect(card->reader);
     
     apdu_t apdu;
 
@@ -83,18 +83,21 @@ int csGetPublicKey(card_t *card, unsigned char* public_key)
 
 
     r = transmit_apdu(card, &apdu);
-    if(r<0) {
+/*    if(r<0) {
         pcsc_disconnect(card->reader);
     }
+*/
     LOG_TEST_RET(r, "APDU transmit failed");
 
     r = check_sw(card, apdu.sw1, apdu.sw2);
-    if(r<0) {
+/*    if(r<0) {
         pcsc_disconnect(card->reader);
     }
+*/
+
     LOG_TEST_RET(r, "Card returned error");
 
-    pcsc_disconnect(card->reader);
+//    pcsc_disconnect(card->reader);
 
     public_key = (unsigned char*)malloc(sizeof(unsigned char)*buf_len);
     memcpy(public_key, buf, buf_len);
@@ -106,13 +109,15 @@ int csVerifyPIN(card_t *card, unsigned char* pin)
 {
     int r;
 
-    r = pcsc_connect(card->reader);
+/*    r = pcsc_connect(card->reader);
     if (r == SC_ERROR_CARD_REMOVED)
         r = pcsc_reconnect(card->reader, SCARD_UNPOWER_CARD);
     if (! r == SC_SUCCESS)
         return -1;
+*/
 
-    pcsc_disconnect(card->reader);
+
+//    pcsc_disconnect(card->reader);
     return 0;
 }
 
@@ -121,7 +126,7 @@ int csDecipher(card_t *card, unsigned char* input, size_t in_len,
 {
     int r;
 
-    r = pcsc_connect(card->reader);
+//    r = pcsc_connect(card->reader);
 //    if (! r == SC_SUCCESS)
 //        return -1;
 
@@ -147,14 +152,16 @@ int csDecipher(card_t *card, unsigned char* input, size_t in_len,
 
     r = transmit_apdu(card, &apdu); 
     free(temp);
-    if(r<0)
+/*    if(r<0)
         pcsc_disconnect(card->reader);
+*/
     LOG_TEST_RET(r, "APDU transmit failed\n");
 
     r = check_sw(card, apdu.sw1, apdu.sw2);
-    if(r<0)
+/*    if(r<0)
         pcsc_disconnect(card->reader);
+*/
 
-    pcsc_disconnect(card->reader);
+//    pcsc_disconnect(card->reader);
     LOG_TEST_RET(r, "Card returned error\n");
 }

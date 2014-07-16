@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "cryptostick.h"
+#include "pcsc-wrapper.h"
 
 int main()
 {
@@ -8,7 +9,7 @@ int main()
     cs_list csList;
     csListDevices(csList);
 
-
+//    pcsc_connect(csList.root->card->reader);
     unsigned char pubkey[256];
     csGetPublicKey(csList.root->card, pubkey);
     printf("Public key: %s\n\n\n",pubkey);
@@ -29,5 +30,6 @@ int main()
     unsigned char* ciph = (unsigned char*)"abcabc";
     csDecipher(csList.root->card, ciph, 6, plain, 6);
 
+    // pcsc_disconnect(csList.root->card->reader);
     return 0;
 }
