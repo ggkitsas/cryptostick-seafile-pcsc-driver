@@ -540,7 +540,6 @@ int pcsc_connect(sc_reader_t *reader)
     struct pcsc_private_data *priv = GET_PRIV_DATA(reader);                                                                                                                                                                            
     int r;
 
-    SCardBeginTransaction(priv->gpriv->pcsc_ctx);
     
     r = refresh_attributes(reader);
     if (r != SC_SUCCESS)
@@ -587,6 +586,8 @@ int pcsc_connect(sc_reader_t *reader)
     /* After connect reader is not locked yet */
 //    priv->locked = 0;
 
+    SCardBeginTransaction(priv->gpriv->pcsc_ctx);
+
     return SC_SUCCESS;
 }
 
@@ -631,8 +632,8 @@ int pcsc_disconnect(sc_reader_t * reader)
 {
     struct pcsc_private_data *priv = GET_PRIV_DATA(reader);
 
-    SCardDisconnect(priv->pcsc_card, priv->gpriv->disconnect_action);
     SCardEndTransaction(priv->pcsc_card, priv->gpriv->transaction_end_action);
+    SCardDisconnect(priv->pcsc_card, priv->gpriv->disconnect_action);
     reader->flags = 0;
     return SC_SUCCESS;
 }
