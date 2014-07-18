@@ -324,15 +324,6 @@ iso7816_build_pin_apdu(card_t *card, apdu_t *apdu,
     FUNC_CALLED
     int r, len = 0, pad = 0, use_pin_pad = 0, ins, p1 = 0;                                                                                                                                                                             
 
-/*
-    switch (data->pin_type) {
-    case SC_AC_CHV:
-        break;
-    default:
-        return SC_ERROR_INVALID_ARGUMENTS;                                                                                                                                                                                             
-    }  
-*/
-
     if (data->flags & SC_PIN_CMD_NEED_PADDING)
         pad = 1;
     if (data->flags & SC_PIN_CMD_USE_PINPAD)
@@ -363,12 +354,12 @@ iso7816_build_pin_apdu(card_t *card, apdu_t *apdu,
         if ((r = sc_build_pin(buf+len, buf_len-len, &data->pin2, pad)) < 0)                                                                                                                                                            
             return r;
         /* Special case - where provided the old PIN on the command line
- *          * but expect the new one to be entered on the keypad.                                                                                                                                                                         
- *                   */
+         * but expect the new one to be entered on the keypad.                                                                                                                                                                         
+         */
         if (data->pin1.len && data->pin2.len == 0) {
             printf("Special case - initial pin provided - but new pin asked on keypad\n");
             data->flags |= SC_PIN_CMD_IMPLICIT_CHANGE;                                                                                                                                                                                 
-        };
+        }
         len += r;
         break;
     case SC_PIN_CMD_UNBLOCK:
@@ -424,28 +415,17 @@ int iso7816_pin_cmd(card_t *card, struct sc_pin_cmd_data *data, int *tries_left)
 
 	apdu = data->apdu;
 
-    if (data->pin1.offset == 0) {
-        printf("Card driver didn't set PIN offset\n");
-        return SC_ERROR_INVALID_ARGUMENTS;
-    }
-    if (card->reader) {
-        printf("%s:%d \n", __FILE__, __LINE__);
-        r = pcsc_pin_cmd(card->reader, data);
-    }
-    else {
-        printf("Card reader driver does not support PIN entry through reader key pad\n");
-	    r = SC_ERROR_NOT_SUPPORTED;
-	}
+    r = transmit_apdu(card,apdu);
+    sc_mem_clear(sbuf, sizeof(sbuf));
 
-	/* Don't pass references to local variables up to the caller. */
-	if (data->apdu == &local_apdu)
-		data->apdu = NULL;
+    if(data->apdu == &local_apdu)
+        data->apdu = NULL;
 
-	LOG_TEST_RET(r, "APDU transmit failed");
-	if (apdu->sw1 == 0x63) {
-		if ((apdu->sw2 & 0xF0) == 0xC0 && tries_left != NULL)
-			*tries_left = apdu->sw2 & 0x0F;
-		return SC_ERROR_PIN_CODE_INCORRECT;
-	}
-	return check_sw(card, apdu->sw1, apdu->sw2);
+    LOG_TEST_RET(r, "APDU transmit failed");
+    if (apdu->sw1 == 0x63) {
+        if ((apdu->sw2 & 0x0F) == 0xC0 && tries_left != NULL)
+            *tries_left = apdu->sw2 & 0x0F;
+        return SC_ERROR_PIN_CODE_INCORRECT;
+    }
+    return check_sw(card, apdu->sw1, apdu->sw2);
 }

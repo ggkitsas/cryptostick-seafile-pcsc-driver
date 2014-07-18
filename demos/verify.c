@@ -31,16 +31,10 @@ int main()
 
     printf("%s %d\n",__FILE__,__LINE__);
 
-//    pcsc_connect(card.reader);
-    pcsc_connect(card->reader);
-    printf("%s %d\n",__FILE__,__LINE__);
-
+    // Initialize pin data
     sc_pin_cmd_data pin_data;
-
     pin_data.cmd = SC_PIN_CMD_VERIFY;
     pin_data.pin_reference = 2;
-
-    struct sc_acl_entry acls[SC_MAX_SDO_ACLS];
 
     pin_data.pin1.data = (const u8*)"123456" ;
     pin_data.pin1.len = 6;
@@ -48,9 +42,8 @@ int main()
     pin_data.pin1.max_length = 32;
     pin_data.pin1.encoding = SC_PIN_ENCODING_ASCII;
     
-    int tries_left;
-printf("%s %d\n",__FILE__,__LINE__);
-//    pgp_pin_cmd(&card, &pin_data, &tries_left);
+    int tries_left=3;
+    printf("%s %d\n",__FILE__,__LINE__);
     pgp_pin_cmd(card, &pin_data, &tries_left);
     
 }
