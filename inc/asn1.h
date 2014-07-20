@@ -1,6 +1,10 @@
 #ifndef ASN1_H
 #define ASN1_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stddef.h>
 #include "common.h"
 
@@ -109,6 +113,10 @@ int decode_bit_field(const u8 * inbuf, size_t inlen, void *outbuf, size_t outlen
 
 int decode_bit_string(const u8 * inbuf, size_t inlen, void *outbuf,                                                                                                                                                             
                  size_t outlen, int invert);
+*/
+
+int asn1_encode(const struct sc_asn1_entry *asn1,
+              u8 **ptr, size_t *size, int depth);
 
 void format_asn1_entry(struct sc_asn1_entry *entry, void *parm, void *arg, 
               int set_present);
@@ -117,6 +125,7 @@ void format_asn1_entry(struct sc_asn1_entry *entry, void *parm, void *arg,
 void copy_asn1_entry(const struct sc_asn1_entry *src,
             struct sc_asn1_entry *dest);
 
+/*
 int asn1_decode_entry(struct sc_asn1_entry *entry,
                  const u8 *obj, size_t objlen, int depth);
 
@@ -131,4 +140,9 @@ int asn1_decode_p15_object(const u8 *in,
                   size_t len, struct sc_asn1_pkcs15_object *obj,                                                                                                                                                                       
                   int depth);
 */
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif // ASN1_H

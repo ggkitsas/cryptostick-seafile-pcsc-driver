@@ -176,6 +176,68 @@ extern "C" {
 #define SC_CARD_CAP_ONLY_RAW_HASH_STRIPPED  0x00000080
 
 
+/* Access Control flags */
+#define SC_AC_NONE          0x00000000
+#define SC_AC_CHV           0x00000001 /* Card Holder Verif. */
+#define SC_AC_TERM          0x00000002 /* Terminal auth. */
+#define SC_AC_PRO           0x00000004 /* Secure Messaging */
+#define SC_AC_AUT           0x00000008 /* Key auth. */
+#define SC_AC_SYMBOLIC          0x00000010 /* internal use only */
+#define SC_AC_SEN                       0x00000020 /* Security Environment. */
+#define SC_AC_SCB                       0x00000040 /* IAS/ECC SCB byte. */
+#define SC_AC_IDA                       0x00000080 /* PKCS#15 authentication ID */
+
+#define SC_AC_UNKNOWN           0xFFFFFFFE
+#define SC_AC_NEVER         0xFFFFFFFF
+
+
+/* Operations relating to access control */
+#define SC_AC_OP_SELECT         0
+#define SC_AC_OP_LOCK           1
+#define SC_AC_OP_DELETE         2
+#define SC_AC_OP_CREATE         3
+#define SC_AC_OP_REHABILITATE       4
+#define SC_AC_OP_INVALIDATE     5
+#define SC_AC_OP_LIST_FILES     6
+#define SC_AC_OP_CRYPTO         7
+#define SC_AC_OP_DELETE_SELF        8
+#define SC_AC_OP_PSO_DECRYPT        9
+#define SC_AC_OP_PSO_ENCRYPT        10
+#define SC_AC_OP_PSO_COMPUTE_SIGNATURE  11
+#define SC_AC_OP_PSO_VERIFY_SIGNATURE   12
+#define SC_AC_OP_PSO_COMPUTE_CHECKSUM   13
+#define SC_AC_OP_PSO_VERIFY_CHECKSUM    14
+#define SC_AC_OP_INTERNAL_AUTHENTICATE  15
+#define SC_AC_OP_EXTERNAL_AUTHENTICATE  16
+#define SC_AC_OP_PIN_DEFINE     17
+#define SC_AC_OP_PIN_CHANGE     18
+#define SC_AC_OP_PIN_RESET      19
+#define SC_AC_OP_ACTIVATE       20
+#define SC_AC_OP_DEACTIVATE     21
+#define SC_AC_OP_READ           22
+#define SC_AC_OP_UPDATE         23
+#define SC_AC_OP_WRITE          24
+#define SC_AC_OP_RESIZE         25
+#define SC_AC_OP_GENERATE       26
+#define SC_AC_OP_CREATE_EF      27
+#define SC_AC_OP_CREATE_DF      28
+#define SC_AC_OP_ADMIN          29
+#define SC_AC_OP_PIN_USE        30
+/* If you add more OPs here, make sure you increase SC_MAX_AC_OPS*/
+#define SC_MAX_AC_OPS           31
+
+/* the use of SC_AC_OP_ERASE is deprecated, SC_AC_OP_DELETE should be used
+ *  * instead  */
+#define SC_AC_OP_ERASE          SC_AC_OP_DELETE
+
+#define SC_AC_KEY_REF_NONE  0xFFFFFFFF
+
+
+#define C_ASN1_PUBLIC_KEY_SIZE 2
+#define C_ASN1_RSA_PUB_COEFFICIENTS_SIZE 3
+
+typedef unsigned char u8;
+
 typedef struct sc_algorithm_info {
     unsigned int algorithm;
     unsigned int key_length;
@@ -191,7 +253,18 @@ typedef struct sc_algorithm_info {
     } u;
 } sc_algorithm_info_t;
 
-typedef unsigned char u8;
+/* A large integer, big endian notation */
+struct sc_pkcs15_bignum {
+    u8 *        data;
+    size_t      len;
+};
+typedef struct sc_pkcs15_bignum sc_pkcs15_bignum_t;
+
+struct sc_pkcs15_pubkey_rsa {
+    sc_pkcs15_bignum_t modulus;
+    sc_pkcs15_bignum_t exponent;
+};
+
 
 struct sc_pkcs15_id {
     u8 value[SC_PKCS15_MAX_ID_SIZE];

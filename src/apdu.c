@@ -588,7 +588,6 @@ static int transmit(card_t *card, apdu_t *apdu)
     size_t       olen  = apdu->resplen;
     int          r;
 
-    printf("%s %d\n",__FILE__, __LINE__);
     r = single_transmit(card, apdu);
     LOG_TEST_RET(r, "transmit APDU failed");
 
@@ -638,6 +637,7 @@ int transmit_apdu(card_t *card, apdu_t *apdu)
         size_t    max_send_size = card->max_send_size > 0 ? card->max_send_size : 255;                                                                                                                                                 
 
         while (len != 0) {    
+        printf("%s:(%d)\n", __FILE__, __LINE__);
             size_t    plen;
             apdu_t tapdu;
             int       last = 0;                                                                                                                                                                                                        
@@ -676,12 +676,14 @@ int transmit_apdu(card_t *card, apdu_t *apdu)
             if (r != SC_SUCCESS)
                 break;
             if (last != 0) {
+        printf("%s:(%d)\n", __FILE__, __LINE__);
                 /* in case of the last APDU set the SW1
                  * and SW2 bytes in the original APDU */
                 apdu->sw1 = tapdu.sw1;
                 apdu->sw2 = tapdu.sw2;
                 apdu->resplen = tapdu.resplen;
             } else {
+        printf("%s:(%d)\n", __FILE__, __LINE__);
                 /* otherwise check the status bytes */
                 r = check_sw(card, tapdu.sw1, tapdu.sw2);
                 if (r != SC_SUCCESS)
@@ -690,9 +692,8 @@ int transmit_apdu(card_t *card, apdu_t *apdu)
             len -= plen;
             buf += plen;
         }
-    } else
+    } else 
         /* transmit single APDU */
-    printf("%s %d\n",__FILE__, __LINE__);
         r = transmit(card, apdu);
 
     return r;

@@ -6,6 +6,247 @@
 #include "common.h"
 
 
+static int asn1_encode_entry(const struct sc_asn1_entry *entry,
+                 u8 **obj, size_t *objlen, int depth)
+{
+    void *parm = entry->parm;
+    int (*callback_func)(void *arg, u8 **nobj,
+                 size_t *nobjlen, int ndepth);
+    const size_t *len = (const size_t *) entry->arg;
+    int r = 0;
+    u8 * buf = NULL;
+    size_t buflen = 0;
+
+    callback_func = parm;
+
+    printf("%*.*sencoding '%s'%s\n",
+            depth, depth, "", entry->name,
+        (entry->flags & SC_ASN1_PRESENT)? "" : " (not present)");
+    if (!(entry->flags & SC_ASN1_PRESENT))
+        goto no_object;
+    printf( "%*.*stype=%d, tag=0x%02x, parm=%p, len=%u\n",
+        depth, depth, "",
+        entry->type, entry->tag, parm, len? *len : 0);
+
+    if (entry->type == SC_ASN1_CHOICE) {
+        const struct sc_asn1_entry *list, *choice = NULL;
+
+        list = (const struct sc_asn1_entry *) parm;
+        while (list->name != NULL) {
+            if (list->flags & SC_ASN1_PRESENT) {
+                if (choice) {
+                    printf("ASN.1 problem: more than "
+                        "one CHOICE when encoding %s: "
+                        "%s and %s both present\n",
+                        entry->name,
+                        choice->name,
+                        list->name);
+                    return SC_ERROR_INVALID_ASN1_OBJECT;
+                }
+                choice = list;
+            }
+            list++;
+        }
+        if (choice == NULL)
+            goto no_object;
+        return asn1_encode_entry(choice, obj, objlen, depth + 1);
+    }
+
+    if (entry->type != SC_ASN1_NULL && parm == NULL) {
+        printf("unexpected parm == NULL\n");
+        return SC_ERROR_INVALID_ASN1_OBJECT;
+    }
+
+    switch (entry->type) {
+    case SC_ASN1_STRUCT:
+        r = asn1_encode( (const struct sc_asn1_entry *) parm, &buf,
+                &buflen, depth + 1);
+        break;
+    case SC_ASN1_NULL:
+        buf = NULL;
+        buflen = 0;
+        break;
+    case SC_ASN1_BOOLEAN:
+        buf = malloc(1);
+        if (buf == NULL) {
+            r = SC_ERROR_OUT_OF_MEMORY;
+            break;
+        }
+        buf[0] = *((int *) parm) ? 0xFF : 0;
+        buflen = 1;
+        break;
+    case SC_ASN1_INTEGER:
+    case SC_ASN1_ENUMERATED:
+        r = asn1_encode_integer(*((int *) entry->parm), &buf, &buflen);
+        break;
+    case SC_ASN1_BIT_STRING_NI:
+    case SC_ASN1_BIT_STRING:
+        assert(len != NULL);
+        if (entry->type == SC_ASN1_BIT_STRING)
+            r = encode_bit_string((const u8 *) parm, *len, &buf, &buflen, 1);
+        else
+            r = encode_bit_string((const u8 *) parm, *len, &buf, &buflen, 0);
+        break;
+    case SC_ASN1_BIT_FIELD:
+        assert(len != NULL);
+        r = encode_bit_field((const u8 *) parm, *len, &buf, &buflen);
+        break;
+    case SC_ASN1_PRINTABLESTRING:
+    case SC_ASN1_OCTET_STRING:
+    case SC_ASN1_UTF8STRING:
+        assert(len != NULL);
+        buf = malloc(*len + 1);
+        if (buf == NULL) {
+            r = SC_ERROR_OUT_OF_MEMORY;
+            break;
+        }
+        buflen = 0;
+        /* If the integer is supposed to be unsigned, insert
+ *          * a padding byte if the MSB is one */
+        if ((entry->flags & SC_ASN1_UNSIGNED)
+         && (((u8 *) parm)[0] & 0x80)) {
+            buf[buflen++] = 0x00;
+        }
+        memcpy(buf + buflen, parm, *len);
+        buflen += *len;
+        break;
+    case SC_ASN1_GENERALIZEDTIME:
+        assert(len != NULL);
+        buf = malloc(*len);
+        if (buf == NULL) {
+            r = SC_ERROR_OUT_OF_MEMORY;
+            break;
+        }
+        memcpy(buf, parm, *len);
+        buflen = *len;
+        break;
+    case SC_ASN1_OBJECT:
+        r = sc_asn1_encode_object_id(&buf, &buflen, (struct sc_object_id *) parm);
+        break;
+    case SC_ASN1_PATH:
+        r = asn1_encode_path((const sc_path_t *) parm, &buf, &buflen, depth, entry->flags);
+        break;
+    case SC_ASN1_PKCS15_ID:
+        {
+            const struct sc_pkcs15_id *id = (const struct sc_pkcs15_id *) parm;
+
+            buf = malloc(id->len);
+            if (buf == NULL) {
+                r = SC_ERROR_OUT_OF_MEMORY;
+                break;
+            }
+            memcpy(buf, id->value, id->len);
+            buflen = id->len;
+        }
+        break;
+    case SC_ASN1_PKCS15_OBJECT:
+        r = asn1_encode_p15_object( (const struct sc_asn1_pkcs15_object *) parm, &buf, &buflen, depth);
+        break;
+    case SC_ASN1_ALGORITHM_ID:
+        r = sc_asn1_encode_algorithm_id( &buf, &buflen, (const struct sc_algorithm_id *) parm, depth);
+        break;
+    case SC_ASN1_SE_INFO:
+        if (!len)
+            return SC_ERROR_INVALID_ASN1_OBJECT;
+        r = asn1_encode_se_info( (struct sc_pkcs15_sec_env_info **)parm, *len, &buf, &buflen, depth);
+        break;
+    case SC_ASN1_CALLBACK:
+        r = callback_func( entry->arg, &buf, &buflen, depth);
+        break;
+    default:
+        sc_debug( SC_LOG_DEBUG_ASN1, "invalid ASN.1 type: %d\n", entry->type);
+        return SC_ERROR_INVALID_ASN1_OBJECT;
+    }
+    if (r) {
+        sc_debug(SC_LOG_DEBUG_ASN1, "encoding of ASN.1 object '%s' failed: %s\n", entry->name,
+              sc_strerror(r));
+        if (buf)
+            free(buf);
+        return r;
+    }
+
+    /* Treatment of OPTIONAL elements:
+     *  -   if the encoding has 0 length, and the element is OPTIONAL,
+     *  we don't write anything (unless it's an ASN1 NULL and the
+     *      SC_ASN1_PRESENT flag is set).
+     *  -   if the encoding has 0 length, but the element is non-OPTIONAL,
+     *  constructed, we write a empty element (e.g. a SEQUENCE of
+     *      length 0). In case of an ASN1 NULL just write the tag and
+     *      length (i.e. 0x05,0x00).
+     *  -   any other empty objects are considered bogus
+     */
+no_object:
+    if (!buflen && entry->flags & SC_ASN1_OPTIONAL && !(entry->flags & SC_ASN1_PRESENT)) {
+        /* This happens when we try to encode e.g. the
+ *          * subClassAttributes, which may be empty */
+        *obj = NULL;
+        *objlen = 0;
+        r = 0;
+    } else if (!buflen && (entry->flags & SC_ASN1_EMPTY_ALLOWED)) {
+        *obj = NULL;
+        *objlen = 0;
+        r = asn1_write_element(entry->tag, buf, buflen, obj, objlen);
+        if (r)
+            printf("error writing ASN.1 tag and length: %s\n", sc_strerror(r));
+    } else if (buflen || entry->type == SC_ASN1_NULL || entry->tag & SC_ASN1_CONS) {
+        r = asn1_write_element(entry->tag, buf, buflen, obj, objlen);
+        if (r)
+            printf( "error writing ASN.1 tag and length: %s\n",
+                    sc_strerror(r));
+    } else if (!(entry->flags & SC_ASN1_PRESENT)) {
+        printf("cannot encode non-optional ASN.1 object: not given by caller\n");
+        r = SC_ERROR_INVALID_ASN1_OBJECT;
+    } else {
+        printf("cannot encode empty non-optional ASN.1 object\n");
+        r = SC_ERROR_INVALID_ASN1_OBJECT;
+    }
+    if (buf)
+        free(buf);
+    if (r >= 0)
+        printf( "%*.*slength of encoded item=%u\n", depth, depth, "", *objlen);
+    return r;
+}
+
+int asn1_encode(const struct sc_asn1_entry *asn1,
+              u8 **ptr, size_t *size, int depth)
+{
+    int r, idx = 0;
+    u8 *obj = NULL, *buf = NULL, *tmp;
+    size_t total = 0, objsize;
+
+    for (idx = 0; asn1[idx].name != NULL; idx++) {
+        r = asn1_encode_entry(&asn1[idx], &obj, &objsize, depth);
+        if (r) {
+            if (obj)
+                free(obj);
+            if (buf)
+                free(buf);
+            return r;
+        }
+        /* in case of an empty (optional) element continue with
+ *          * the next asn1 element */
+        if (!objsize)
+            continue;
+        tmp = (u8 *) realloc(buf, total + objsize);
+        if (!tmp) {
+            if (obj)
+                free(obj);
+            if (buf)
+                free(buf);
+            return SC_ERROR_OUT_OF_MEMORY;
+        }
+        buf = tmp;
+        memcpy(buf + total, obj, objsize);
+        free(obj);
+        obj = NULL;
+        total += objsize;
+    }
+    *ptr = buf;
+    *size = total;
+    return 0;
+}
+
+
 int sc_asn1_decode_integer(const u8 * inbuf, size_t inlen, int *out) 
 {
     int    a = 0;
