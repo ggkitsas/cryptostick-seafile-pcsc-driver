@@ -49,4 +49,8 @@ int iso7816_select_file(card_t *card, const struct sc_path *in_path, struct sc_f
 
 int iso7816_pin_cmd(card_t *card, struct sc_pin_cmd_data *data, int *tries_left);
 
+int iso7816_decipher(card_t *card,
+        const u8 * crgram, size_t crgram_len,
+        u8 * out, size_t outlen);
+
 #endif // ISO7816_H

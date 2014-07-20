@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #include "common.h"
@@ -428,4 +429,47 @@ int iso7816_pin_cmd(card_t *card, struct sc_pin_cmd_data *data, int *tries_left)
         return SC_ERROR_PIN_CODE_INCORRECT;
     }
     return check_sw(card, apdu->sw1, apdu->sw2);
+}
+
+int iso7816_decipher(card_t *card,
+        const u8 * crgram, size_t crgram_len,
+        u8 * out, size_t outlen)       
+{
+    int       r;
+    apdu_t apdu;
+    u8        *sbuf = NULL;   
+
+    sbuf = (u8*)malloc(crgram_len + 1); 
+    if (sbuf == NULL)
+        return SC_ERROR_OUT_OF_MEMORY; 
+
+    /* INS: 0x2A  PERFORM SECURITY OPERATION
+     * P1:  0x80  Resp: Plain value
+     * P2:  0x86  Cmd: Padding indicator byte followed by cryptogram */
+    format_apdu(card, &apdu, APDU_CASE_4, 0x2A, 0x80, 0x86);
+    apdu.resp    = out;
+    apdu.resplen = outlen;
+    /* if less than 256 bytes are expected than set Le to 0x00
+     * to tell the card the we want everything available (note: we
+     * always have Le <= crgram_len) */
+    apdu.le      = (outlen >= 256 && crgram_len < 256) ? 256 : outlen;
+    /* Use APDU chaining with 2048bit RSA keys if the card does not do extended APDU-s */
+    if ((crgram_len+1 > 255) && !(card->caps & CARD_CAP_APDU_EXT))
+        apdu.flags |= APDU_FLAGS_CHAINING;
+
+    sbuf[0] = 0; /* padding indicator byte, 0x00 = No further indication */
+    memcpy(sbuf + 1, crgram, crgram_len);
+    apdu.data = sbuf;
+    apdu.lc = crgram_len + 1;
+    apdu.datalen = crgram_len + 1; 
+    r = transmit_apdu(card, &apdu); 
+printf("%s:(%d)\n", __FILE__, __LINE__);
+    sc_mem_clear(sbuf, crgram_len + 1);
+    free(sbuf);
+    LOG_TEST_RET(r, "APDU transmit failed");
+
+    if (apdu.sw1 == 0x90 && apdu.sw2 == 0x00)
+        LOG_FUNC_RETURN(apdu.resplen);
+    else
+        LOG_FUNC_RETURN(check_sw(card, apdu.sw1, apdu.sw2));
 }
