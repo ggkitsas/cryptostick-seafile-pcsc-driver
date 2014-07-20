@@ -17,8 +17,9 @@ typedef struct cs_list {
 
 int csListDevices(cs_list &cryptosticks);
 int csGetSerialNo(card_t *card, unsigned char serialno[6]);
-int csGetPublicKey(card_t *card, unsigned char* public_key);
-int csVerifyPIN(card_t *card, unsigned char* pin);
+int csGetPublicKey(card_t *card, unsigned char** public_key);
+int csGetPublicExp(card_t *card, unsigned char** exp);
+int csVerifyPIN(card_t *card, unsigned char* pin, int pinLength);
 int csDecipher(card_t *card, unsigned char* input, size_t in_length, 
                 unsigned char* output, size_t out_len);
 

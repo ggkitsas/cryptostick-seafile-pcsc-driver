@@ -61,7 +61,7 @@ int csGetSerialNo(card_t *card, unsigned char serialno[6])
     return 0;
 }
 
-int csGetPublicKey(card_t *card, unsigned char* public_key)
+int csGetPublicKey(card_t *card, unsigned char** public_key)
 {
     int r;
 
@@ -100,32 +100,57 @@ int csGetPublicKey(card_t *card, unsigned char* public_key)
 
 //    pcsc_disconnect(card->reader);
 
-    public_key = (unsigned char*)malloc(sizeof(unsigned char)*buf_len);
-    memcpy(public_key, buf, buf_len);
-    
+    *public_key = (unsigned char*)malloc(sizeof(unsigned char)*buf_len);
+    memcpy(*public_key, buf, buf_len);
+ 
     return 0;
 }
 
-int csVerifyPIN(card_t *card, unsigned char* pin)
+int csGetPublicExp(card_t *card, unsigned char** exp)
 {
     int r;
 
-/*    r = pcsc_connect(card->reader);
-    if (r == SC_ERROR_CARD_REMOVED)
-        r = pcsc_reconnect(card->reader, SCARD_UNPOWER_CARD);
-    if (! r == SC_SUCCESS)
-        return -1;
-*/
+//    pcsc_connect(card->reader);
+    
+    apdu_t apdu;
 
+    u8 idbuf[2];
+    unsigned tag = 0xb800; // Control reference template for confidentiality (CT)
+    u8 buf[256];
+    size_t buf_len=4;
+
+    format_apdu(card, &apdu, APDU_CASE_4, 0x47, 0x82, 0x00);
+    apdu.lc = 2;
+    apdu.data = ushort2bebytes(idbuf, tag);
+    apdu.datalen = 2;         
+    apdu.le = ((buf_len >= 256) && !(card->caps & CARD_CAP_APDU_EXT)) ? 256 : buf_len;
+    apdu.resp = buf;          
+    apdu.resplen = buf_len;   
+
+
+    r = transmit_apdu(card, &apdu);
+    LOG_TEST_RET(r, "APDU transmit failed");
+
+    r = check_sw(card, apdu.sw1, apdu.sw2);
+    LOG_TEST_RET(r, "Card returned error");
+
+
+    *exp = (unsigned char*)malloc(sizeof(unsigned char)*buf_len);
+    memcpy(*exp, buf, buf_len);
+ 
+    return 0;
+}
+
+int csVerifyPIN(card_t *card, unsigned char* pin, int pinLength)
+{
+    int r;
 
     sc_pin_cmd_data pin_data;
     pin_data.cmd = SC_PIN_CMD_VERIFY;
     pin_data.pin_reference = 2;
 
-    struct sc_acl_entry acls[SC_MAX_SDO_ACLS];
-
-    pin_data.pin1.data = (const u8*)"123456" ;
-    pin_data.pin1.len = 6;
+    pin_data.pin1.data = (const u8*)pin ;
+    pin_data.pin1.len = pinLength;
     pin_data.pin1.min_length = 6;
     pin_data.pin1.max_length = 32;
     pin_data.pin1.encoding = SC_PIN_ENCODING_ASCII;
@@ -133,7 +158,6 @@ int csVerifyPIN(card_t *card, unsigned char* pin)
     int tries_left;
     pgp_pin_cmd(card, &pin_data, &tries_left);
 
-//    pcsc_disconnect(card->reader);
     return 0;
 }
 
