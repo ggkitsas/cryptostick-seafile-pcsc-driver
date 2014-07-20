@@ -94,7 +94,9 @@ struct pgp_priv_data {
 
 
 int pgp_init(card_t *card);
+int pgp_get_data(card_t *card, unsigned int tag, u8 *buf, size_t buf_len);
 int pgp_finish(card_t *card);
 int pgp_pin_cmd(card_t *card, struct sc_pin_cmd_data *data, int *tries_left);
+int pgp_get_pubkey_pem(card_t *card, unsigned int tag, u8 *buf, size_t buf_len);
 
 #endif // OPENPGP_H
