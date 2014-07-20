@@ -1,15 +1,15 @@
 CC=g++
 CFLAGS=
-LDFLAGS=-lpcsclite #-lssl
+LDFLAGS=-lpcsclite -lcrypto -lssl
 
 DEMOS_DIR=$(CURDIR)/demos
 
-LIB=-L"$(shell "pwd")/../pcsc-lite-1.8.11/build/lib"
+LIB=-L"$(shell "pwd")/../pcsc-lite-1.8.11/build/lib" -L"/usr/lib/x86_64-linux-gnu"
 INC=-I"$(shell "pwd")/../pcsc-lite-1.8.11/build/include/PCSC" -I"$(shell "pwd")/inc"
 
 COMMON_DEPS= errors.c common.c apdu.c iso7816.c openpgp.c card.c pcsc-wrapper.c cryptostick.c
 
-.PHONY: verify get_public_key decipher full_demo all
+.PHONY: verify get_public_key decipher pgp-get-data full_demo all
 
 
 get_public_key:
@@ -27,9 +27,14 @@ verify:
 	$(CC) $(CFLAGS) $(INC) $(LIB) -o verify $(COMMON_DEPS) $(DEMOS_DIR)/verify.c $(LDFLAGS) && \
 	mv verify ../
 
+pgp-get-data:
+	cd src && \
+	$(CC) $(CFLAGS) $(INC) $(LIB) -o pgp-get-data $(COMMON_DEPS) $(DEMOS_DIR)/pgp-get-data.c $(LDFLAGS) && \
+	mv pgp-get-data ../
+
 full_demo:
 	cd src && \
 	$(CC) $(CFLAGS) $(INC) $(LIB) -o full_demo $(COMMON_DEPS) $(DEMOS_DIR)/full_demo.c $(LDFLAGS) && \
 	mv full_demo ../
 	
-all: verify get_public_key decipher full_demo
+all: verify get_public_key decipher pgp-get-data full_demo
