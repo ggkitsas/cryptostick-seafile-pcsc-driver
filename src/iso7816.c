@@ -55,6 +55,9 @@ static const struct sc_card_error iso7816_errors[] = {
     { 0x6F00, SC_ERROR_CARD_CMD_FAILED, "No precise diagnosis" },
 };
 
+int iso7816_get_response(card_t *card, size_t *count, u8 *buf);
+
+
 int iso7816_check_sw(unsigned int sw1, unsigned int sw2)                                                                                                                                                             
 {
     const int err_count = sizeof(iso7816_errors)/sizeof(iso7816_errors[0]);                                                                                                                                                            
@@ -67,10 +70,10 @@ int iso7816_check_sw(unsigned int sw1, unsigned int sw2)
     }  
     if (sw1 == 0x90)
         return SC_SUCCESS;
-        if (sw1 == 0x63U && (sw2 & ~0x0fU) == 0xc0U ) {
-             printf("Verification failed (remaining tries: %d)", (sw2 & 0x0f));                                                                                                                                             
-             return SC_ERROR_PIN_CODE_INCORRECT;                                                                                                                                                                                       
-        }
+    if (sw1 == 0x63U && (sw2 & ~0x0fU) == 0xc0U ) {
+         printf("Verification failed (remaining tries: %d)", (sw2 & 0x0f));                                                                                                                                             
+         return SC_ERROR_PIN_CODE_INCORRECT;                                                                                                                                                                                       
+    }
     for (i = 0; i < err_count; i++)   {
         if (iso7816_errors[i].SWs == ((sw1 << 8) | sw2)) {
             printf("%s", iso7816_errors[i].errorstr);
@@ -84,6 +87,7 @@ int iso7816_check_sw(unsigned int sw1, unsigned int sw2)
 
 int iso7816_get_response(card_t *card, size_t *count, u8 *buf)
 {
+FUNC_CALLED
     apdu_t apdu;
     int r;
     size_t rlen;
@@ -103,8 +107,10 @@ int iso7816_get_response(card_t *card, size_t *count, u8 *buf)
 
     r = transmit_apdu(card, &apdu);
     LOG_TEST_RET(r, "APDU transmit failed");
-    if (apdu.resplen == 0)
+    if (apdu.resplen == 0) {
+        printf("End of iso7816_get_response\n");
         LOG_FUNC_RETURN(check_sw(card, apdu.sw1, apdu.sw2));
+    }
 
     *count = apdu.resplen;
 
@@ -116,7 +122,7 @@ int iso7816_get_response(card_t *card, size_t *count, u8 *buf)
         r = 0; /* Le not reached but file/record ended */
     else
         r = check_sw(card, apdu.sw1, apdu.sw2);
-
+printf("End of iso7816_get_response\n");
     return r;
 }
 

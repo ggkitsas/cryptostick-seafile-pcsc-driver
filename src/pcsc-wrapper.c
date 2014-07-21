@@ -75,7 +75,6 @@ static DWORD opensc_proto_to_pcsc(unsigned int proto)
 
 int pcsc_detect_card_presence(sc_reader_t *reader)
 {
-    FUNC_CALLED
     int rv;
 
     rv = refresh_attributes(reader);
@@ -99,9 +98,7 @@ int refresh_attributes(sc_reader_t *reader)
         priv->reader_state.dwCurrentState = priv->reader_state.dwEventState;
     }
 
-    printf("%s %d\n",__FILE__, __LINE__);
     rv = SCardGetStatusChange(priv->gpriv->pcsc_ctx, 0, &priv->reader_state, 1);
-    printf("%s %d\n",__FILE__, __LINE__);
 
     if (rv != SCARD_S_SUCCESS) {   
         if (rv == (LONG)SCARD_E_TIMEOUT) {
@@ -109,7 +106,6 @@ int refresh_attributes(sc_reader_t *reader)
             reader->flags &= ~SC_READER_CARD_CHANGED;
             SC_FUNC_RETURN(SC_SUCCESS);
         }
-        printf("%s %d\n",__FILE__, __LINE__);
         return pcsc_to_opensc_error(rv);
     }  
     state = priv->reader_state.dwEventState;
@@ -121,7 +117,6 @@ int refresh_attributes(sc_reader_t *reader)
          * XXX: We'll hit it again, as no readers are removed currently.
         */
         reader->flags &= ~(SC_READER_CARD_PRESENT);
-        printf("%s %d\n",__FILE__, __LINE__);
         return SC_ERROR_READER_DETACHED;
     }  
 
@@ -174,7 +169,6 @@ int pcsc_internal_transmit(sc_reader_t *reader,
              u8 *recvbuf, size_t *recvsize, 
              unsigned long control)                                                                                                
 {
-    FUNC_CALLED
     struct pcsc_private_data *priv = GET_PRIV_DATA(reader);
     SCARD_IO_REQUEST sSendPci, sRecvPci; 
     DWORD dwSendLength, dwRecvLength;
@@ -183,7 +177,6 @@ int pcsc_internal_transmit(sc_reader_t *reader,
 
     card = priv->pcsc_card;
 
-    printf("%s:%d -> active_proto=%d\n",__FILE__, __LINE__, reader->active_protocol);
     sSendPci.dwProtocol = opensc_proto_to_pcsc(reader->active_protocol);
     sSendPci.cbPciLength = sizeof(sSendPci);
     sRecvPci.dwProtocol = opensc_proto_to_pcsc(reader->active_protocol);
@@ -196,15 +189,12 @@ int pcsc_internal_transmit(sc_reader_t *reader,
         rv = SCardTransmit(card, &sSendPci, sendbuf, dwSendLength,
                    &sRecvPci, recvbuf, &dwRecvLength);
         printf("PCSC error: %s\n",pcsc_stringify_error(rv) );;
-        printf("%s:(%d)\n", __FILE__, __LINE__);
     } else {
-            printf("%s:(%d)\n", __FILE__, __LINE__);
             rv = SCardControl(card, (DWORD) control, sendbuf, dwSendLength,                                                                                                                                               
                   recvbuf, dwRecvLength, &dwRecvLength);                                                                           
     }  
 
     if (rv != SCARD_S_SUCCESS) {
-        printf("%s:(%d)\n", __FILE__, __LINE__);
         switch (rv) {         
         case SCARD_W_REMOVED_CARD:         
             return SC_ERROR_CARD_REMOVED;
@@ -226,7 +216,6 @@ int pcsc_internal_transmit(sc_reader_t *reader,
 
 int pcsc_transmit(sc_reader_t *reader, apdu_t *apdu)
 {
-    FUNC_CALLED
     size_t       ssize, rsize, rbuflen = 0;     
     u8           *sbuf = NULL, *rbuf = NULL;    
     int          r;
@@ -243,19 +232,17 @@ int pcsc_transmit(sc_reader_t *reader, apdu_t *apdu)
         goto out;
     }  
     /* encode and log the APDU */  
-    printf("%s %d\n",__FILE__, __LINE__);
     r = apdu_get_octets(apdu, &sbuf, &ssize, reader->active_protocol);
     if (r != SC_SUCCESS)
         goto out;
-    if (reader->name)
-        printf("reader '%s'\n", reader->name); 
+//    if (reader->name)
+//        printf("reader '%s'\n", reader->name); 
     apdu_log(sbuf, ssize, 1);
 
     r = pcsc_internal_transmit(reader, sbuf, ssize,
                 rbuf, &rsize, apdu->control); 
     if (r < 0) {
         /* unable to transmit ... most likely a reader problem */
-        printf("%s %d\n",__FILE__, __LINE__);
         printf("unable to transmit\n");
         goto out;
     }  
@@ -315,7 +302,6 @@ out:
 
 void detect_reader_features(sc_reader_t *reader, SCARDHANDLE card_handle) {
 
-    FUNC_CALLED
     struct pcsc_private_data *priv = GET_PRIV_DATA(reader);
     u8 feature_buf[256], rbuf[SC_MAX_APDU_BUFFER_SIZE];
     DWORD rcount, feature_len, i;  
@@ -543,7 +529,6 @@ int pcsc_detect_readers(reader_list* readerList)
 
     r = SCardEstablishContext(SCARD_SCOPE_USER, NULL, NULL, &cardCtx);
     if (!r==SCARD_S_SUCCESS) {        
-        printf("%s %d\n" ,__FILE__, __LINE__);
         printf("SCardEstablishContext failed\n");
         ret = pcsc_to_opensc_error(r);
         goto out;
@@ -551,7 +536,6 @@ int pcsc_detect_readers(reader_list* readerList)
 
     r = SCardListReaders(cardCtx, NULL, NULL, (LPDWORD) &reader_buf_size);
     if (!r==SCARD_S_SUCCESS) {
-        printf("%s %d r = %x\n" ,__FILE__, __LINE__, r);
         printf("SCardListReaders failed\n");
         ret = SC_ERROR_NO_READERS_FOUND;
         goto out;
@@ -559,7 +543,6 @@ int pcsc_detect_readers(reader_list* readerList)
 
     reader_buf = (char*)malloc(sizeof(char) * reader_buf_size);
     if (!reader_buf) {
-        printf("%s %d\n" ,__FILE__, __LINE__);
         printf("Lack of memory\n");    
         ret = SC_ERROR_OUT_OF_MEMORY;
         goto out;
@@ -567,7 +550,6 @@ int pcsc_detect_readers(reader_list* readerList)
 
     r = SCardListReaders(cardCtx, mszGroups, reader_buf, (LPDWORD) &reader_buf_size);
     if (!r==SCARD_S_SUCCESS) {
-        printf("%s %d\n" ,__FILE__, __LINE__);
         printf("SCardListReaders failed\n");
         ret = pcsc_to_opensc_error(r);
         goto out;
@@ -584,15 +566,12 @@ int pcsc_detect_readers(reader_list* readerList)
             goto err1;
         }
         if ((priv = (pcsc_private_data*)calloc(1, sizeof(struct pcsc_private_data))) == NULL) {
-            printf("%s %d\n" ,__FILE__, __LINE__);
             printf("Lack of memory\n");
             ret = SC_ERROR_OUT_OF_MEMORY;  
             goto err1;
         }
-    printf("%s %d\n",__FILE__, __LINE__);
         reader->drv_data = priv;
         if( (reader->name = strdup(reader_name)) == NULL) {
-            printf("%s %d\n" ,__FILE__, __LINE__);
             printf("Lack of memory\n");
             ret = SC_ERROR_OUT_OF_MEMORY;  
             goto err1;
@@ -701,7 +680,6 @@ part10_find_property_by_tag(unsigned char buffer[], int length,
  *  * and fix the values if needed */
 static int part10_check_pin_min_max(sc_reader_t *reader, struct sc_pin_cmd_data *data)                                                                                                                                                            
 {
-    FUNC_CALLED
     int r;
     unsigned char buffer[256];
     size_t length = sizeof buffer; 
@@ -758,7 +736,6 @@ static int part10_check_pin_min_max(sc_reader_t *reader, struct sc_pin_cmd_data 
 /* Build a PIN verification block + APDU */
 static int part10_build_verify_pin_block(struct sc_reader *reader, u8 * buf, size_t * size, struct sc_pin_cmd_data *data)
 {
-    FUNC_CALLED
     int offset = 0, count = 0;
     apdu_t *apdu = data->apdu;  
     u8 tmp;
@@ -775,7 +752,6 @@ static int part10_build_verify_pin_block(struct sc_reader *reader, u8 * buf, siz
         tmp |= SC_CCID_PIN_ENCODING_ASCII;                                                                                                                                                                                             
 
         /* if the effective PIN length offset is specified, use it */ 
-        printf("%s:%d length_offset=%lu\n",__FILE__, __LINE__, data->pin1.length_offset);
         if (data->pin1.length_offset > 4) {
             tmp |= SC_CCID_PIN_UNITS_BYTES;
             tmp |= (data->pin1.length_offset - 5) << 3;                                                                                                                                                                                
@@ -836,7 +812,6 @@ static int part10_build_verify_pin_block(struct sc_reader *reader, u8 * buf, siz
     pin_verify->abData[offset++] = apdu->p1;
     pin_verify->abData[offset++] = apdu->p2;
 
-    printf("%s:%d cla=%.2x ins=%.2x p1=%.2x p2=%.2x\n",__FILE__, __LINE__, apdu->cla, apdu->ins, apdu->p1, apdu->p2);
     /* Copy data if not Case 1 */
     if (data->pin1.length_offset != 4) {
         pin_verify->abData[offset++] = apdu->lc;
@@ -854,7 +829,6 @@ static int part10_build_verify_pin_block(struct sc_reader *reader, u8 * buf, siz
 
 int pcsc_pin_cmd(sc_reader_t *reader, struct sc_pin_cmd_data *data)
 {
-    FUNC_CALLED
     struct pcsc_private_data *priv = GET_PRIV_DATA(reader); 
     u8 rbuf[SC_MAX_APDU_BUFFER_SIZE]; 
     /* sbuf holds a pin verification/modification structure plus an APDU. */
@@ -876,7 +850,6 @@ int pcsc_pin_cmd(sc_reader_t *reader, struct sc_pin_cmd_data *data)
     part10_check_pin_min_max(reader, data);
     r = part10_build_verify_pin_block(reader, sbuf, &scount, data);
     if(r == SC_SUCCESS)
-        printf("%s:%d SUCCESS\n",__FILE__, __LINE__);
     ioctl = priv->verify_ioctl ? priv->verify_ioctl : priv->verify_ioctl_start;
 
     /* If PIN block building failed, we fail too */
