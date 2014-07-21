@@ -17,11 +17,15 @@ typedef struct cs_list {
 
 int csListDevices(cs_list &cryptosticks);
 int csGetSerialNo(card_t *card, unsigned char serialno[6]);
-int csGetPublicKey(card_t *card, unsigned char** public_key);
+int csGetPublicKey(card_t *card, 
+                    unsigned char** publicModulus, size_t* publicModulusLength,
+                    unsigned char** publicExponent, size_t* publicExponentLength);
 int csGetPublicExp(card_t *card, unsigned char** exp);
 int csVerifyPIN(card_t *card, unsigned char* pin, int pinLength);
 int csDecipher(card_t *card, unsigned char* input, size_t in_length, 
                 unsigned char* output, size_t out_len);
+int csEncrypt(card_t* card, unsigned char* input, unsigned inputLength,
+                            unsigned char** encrypted, unsigned* encryptedLength);
 
 
 #endif // CRYPOSTICK_H
