@@ -80,6 +80,8 @@ int pgp_init(card_t *card)
     /* get card_features from ATR & DOs */
 //    pgp_get_card_features(card);                                                                                                                                                                                                       
 
+    card->flags = CARD_CAP_APDU_EXT;
+
     return SC_SUCCESS;
 }
 
