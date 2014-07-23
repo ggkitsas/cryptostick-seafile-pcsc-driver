@@ -571,19 +571,23 @@ int pcsc_detect_readers(reader_list* readerList)
             goto err1;
         }
         reader->drv_data = priv;
+printf("checkpoint 0\n");
         if( (reader->name = strdup(reader_name)) == NULL) {
             printf("Lack of memory\n");
             ret = SC_ERROR_OUT_OF_MEMORY;  
             goto err1;
         }
+printf("checkpoint 1\n");
 
         if(readerList->readerNum == 0) {
             readerList->root = (reader_list_node*)malloc(sizeof(reader_list_node));
             currReaderNode = readerList->root;
         }
-        else
-            currReaderNode->next = (reader_list_node*)malloc(sizeof(reader_list_node));
+        else {
+            currReaderNode = (reader_list_node*)malloc(sizeof(reader_list_node));
+        }
 
+printf("checkpoint 2\n");
         currReaderNode->reader = reader;
         currReaderNode = currReaderNode->next;
         readerList->readerNum++;
