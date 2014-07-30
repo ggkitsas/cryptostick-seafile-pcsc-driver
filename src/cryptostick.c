@@ -12,7 +12,7 @@
 
 #include "cryptostick.h"
 
-int csListDevices(cs_list &cryptosticks)
+int csListDevices(cs_list *cryptosticks)
 {
     int r;
 
@@ -26,7 +26,7 @@ int csListDevices(cs_list &cryptosticks)
 
     
     int i;
-    cryptosticks.numOfNodes = 0;
+    cryptosticks->numOfNodes = 0;
     cs_list_node* csCurrentNode;
     cs_list_node* previousNode;
     reader_list_node* readerCurrentNode = readerList->root;
@@ -37,22 +37,22 @@ int csListDevices(cs_list &cryptosticks)
         r = connect_card(readerCurrentNode->reader, &(csCurrentNode->card));
         if(! r == SC_SUCCESS)
             continue;
-
+   
         r = card_init(csCurrentNode->card);
         if(! r == SC_SUCCESS)
             continue;
 
         if(i == 0) {
-            cryptosticks.root = csCurrentNode;
-            previousNode = cryptosticks.root;
+            cryptosticks->root = csCurrentNode;
+            previousNode = cryptosticks->root;
         } else {
             previousNode->next = csCurrentNode;
             previousNode = previousNode->next;
         }
-        cryptosticks.numOfNodes++;
+        cryptosticks->numOfNodes++;
       
 
-        if(i != cryptosticks.numOfNodes -1) {
+        if(i != readerList->readerNum -1) {
             readerCurrentNode = readerCurrentNode->next;
         }
     }
