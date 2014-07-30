@@ -3,6 +3,8 @@ verify
 get_public_key
 decipher
 full_demo
+get_serial_no
+import_keys
 
 tags
 *.swp
