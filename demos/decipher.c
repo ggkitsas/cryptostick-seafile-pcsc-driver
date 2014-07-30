@@ -16,8 +16,6 @@
 #include "iso7816.h"
 #include "cryptostick.h"
 
-#define GNUK
-
 void sha256(char *string, char outputBuffer[65])
 {
     unsigned char hash[SHA256_DIGEST_LENGTH];
@@ -32,6 +30,26 @@ void sha256(char *string, char outputBuffer[65])
     }
     outputBuffer[64] = 0;
 }
+
+unsigned char *getline(size_t size) {
+    if (size <= 0) size = 1;
+    unsigned char *str;
+    int ch;
+    size_t len = 0;
+    str = (unsigned char*)realloc(NULL, sizeof(char)*size); //size is start size
+    if (!str) return str;
+    while ((ch = getchar()) && ch != '\n') {
+        str[len++] = ch;
+        if(len == size){
+            str = (unsigned char*)realloc(str, sizeof(char)*(size*=2));
+            if (!str) return str;          
+        }
+    }
+    str[len++]='\0';
+
+    return (unsigned char*)realloc(str, sizeof(char)*len);
+}
+
 
 int main()
 {
@@ -53,7 +71,10 @@ int main()
     card_init(card);
 
 // PIN verification
-    r = csVerifyPIN(card, (unsigned char*)"123456", 6);
+    unsigned char* pin = getline(6);
+    printf("Please provide user PIN:\n");
+//    r = csVerifyPIN(card, (unsigned char*)"123456", 6);
+    r = csVerifyPIN(card, pin, strlen((const char*)pin));
     LOG_TEST_RET(r, "PIN verification failed");    
 
 // Get public key
@@ -139,6 +160,7 @@ printf("-------------------------- Encrypting ----------------------------------
     // Host encryption
     int rsaPadding = RSA_PKCS1_PADDING;
     int enc_length = RSA_public_encrypt(6, (unsigned char*)"blabla", encrypted, rsa, rsaPadding);
+printf("------------------------------------------------------------------------\n\n enc length = %d \n\n------------------------------------------------------------\n",enc_length);
     if(enc_length == -1) {
         char error[400];
         ERR_error_string(ERR_get_error(), error);
