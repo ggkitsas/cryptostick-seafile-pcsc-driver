@@ -9,7 +9,7 @@
 #include "winscard.h"
 
 
-#define GNUK
+//#define GNUK
 
 int main()
 {
@@ -28,6 +28,10 @@ int main()
     connect_card(readerList->root->reader, &card);
     card_init(card);
 
+    #ifndef GNUK
+//    card->caps |= CARD_CAP_APDU_EXT;
+    #endif
+
     printf("Serial No: (len=%lu) ", card->serialnr.len - 2);
     for(i=2;i<card->serialnr.len;i++)
         printf("%.2x ", card->serialnr.value[i]);
@@ -35,8 +39,9 @@ int main()
 
     u8 idbuf[2];
     unsigned tag = 0xb800; // Control reference template for confidentiality (CT)
-    u8 buf[270];
+
     size_t buf_len=270;
+    u8 buf[buf_len];
 
     // Craft apdu
 // GNUK specific
@@ -48,8 +53,9 @@ int main()
     //format_apdu(card, &apdu, APDU_CASE_4, 0x47, 0x81, 0x00);
     apdu.lc = 2;
     apdu.data = ushort2bebytes(idbuf, tag);
-    apdu.datalen = 2;         
+    apdu.datalen = 2;
     apdu.le = ((buf_len >= 256) && !(card->caps & CARD_CAP_APDU_EXT)) ? 256 : buf_len;
+printf("\n\n\n\n\n%d\n\n\n\n\n",apdu.le);
     apdu.resp = buf;          
     apdu.resplen = buf_len;   
 
