@@ -35,7 +35,7 @@ import_keys:
 	cd src && \
 	$(CC) $(CFLAGS) $(INC) -I"" $(LIB) -o import_keys \
 			$(COMMON_DEPS) \
-			$(DEMO_DIR)import_keys_lib.c \
+			$(DEMOS_DIR)/import_keys_lib.c \
 			$(DEMOS_DIR)/import_keys.c \
 		    $(LDFLAGS) && \
 	mv import_keys ../
