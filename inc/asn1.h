@@ -115,6 +115,9 @@ int decode_bit_string(const u8 * inbuf, size_t inlen, void *outbuf,
                  size_t outlen, int invert);
 */
 
+int asn1_write_element(unsigned int tag, const u8 * data, 
+                size_t datalen, u8 ** out, size_t * outlen);
+
 int asn1_encode(const struct sc_asn1_entry *asn1,
               u8 **ptr, size_t *size, int depth);
 

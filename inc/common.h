@@ -437,6 +437,7 @@ struct sc_pin_cmd_data {
     apdu_t *apdu;       /* APDU of the PIN command */
 };
 
+u8 *ulong2bebytes(u8 *buf, unsigned long x);
 u8* ushort2bebytes(u8 *buf, unsigned short x);
 
 void sc_mem_clear(void *ptr, size_t len);
