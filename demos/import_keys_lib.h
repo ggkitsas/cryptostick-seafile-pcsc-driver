@@ -1,3 +1,6 @@
+#ifndef IMPORT_KEYS_LIB_H
+#define IMPORT_KEYS_LIB_H
+
 #include "common.h"
 
 #define SC_OPENPGP_KEYFORMAT_STD    0    /* See 4.3.3.6 Algorithm Attributes */
@@ -44,4 +47,6 @@ struct sc_pkcs15_prkey {
 };
 */
 
-static int pgp_store_key(card_t *card, sc_cardctl_openpgp_keystore_info_t *key_info);
+int pgp_store_key(card_t *card, sc_cardctl_openpgp_keystore_info_t *key_info);
+
+#endif

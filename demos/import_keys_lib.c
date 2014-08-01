@@ -7,6 +7,7 @@
 
 #include "common.h"
 #include "asn1.h"
+#include "openpgp.h"
 #include "import_keys_lib.h"
 
 
@@ -41,7 +42,7 @@ pgp_update_pubkey_blob(card_t *card, u8* modulus, size_t modulus_len,
     printf( "Get the blob %X.\n", blob_id);
     r = pgp_get_blob(card, priv->mf, blob_id, &pk_blob);
     LOG_TEST_RET( r, "Cannot get the blob.");
-*/
+
     /* Encode pubkey */
 /*    memset(&pubkey, 0, sizeof(pubkey));
     pubkey.algorithm = SC_ALGORITHM_RSA;
@@ -138,7 +139,7 @@ pgp_calculate_and_store_fingerprint(card_t *card, time_t ctime,
         goto exit;
     }
     /* Save the fingerprints sequence */
-    newdata = malloc(fpseq_blob->len);
+    newdata = (u8*)malloc(fpseq_blob->len);
     if (!newdata) {
         printf( "Not enough memory to update fingerprints blob.\n");
         goto exit;
@@ -305,8 +306,10 @@ pgp_build_extended_header_list(card_t *card, sc_cardctl_openpgp_keystore_info_t 
     /* Cardholder private key template's data part */
     memset(pritemplate, 0, max_prtem_len);                                                                                                                                                                                             
 
+printf("CHECKPOINT 2.1\n");
     /* Get required exponent length */
     alat_blob = pgp_find_blob(card, 0x00C0 | key_info->keytype);                                                                                                                                                                       
+printf("CHECKPOINT 2.2\n");
     if (!alat_blob) {         
         printf("Cannot read Algorithm Attributes\n.");
         LOG_FUNC_RETURN(SC_ERROR_OBJECT_NOT_FOUND);                                                                                                                                                                               
@@ -407,12 +410,12 @@ out2:
 }
 
 
-static int pgp_store_key(card_t *card, sc_cardctl_openpgp_keystore_info_t *key_info)
+int pgp_store_key(card_t *card, sc_cardctl_openpgp_keystore_info_t *key_info)
 {
     sc_cardctl_openpgp_keygen_info_t pubkey;
     u8 *data;
     size_t len;
-    int r;
+    int r=0;
 
     /* Validate */
 //    if (key_info->keytype < 1 || key_info->keytype > 3) {
@@ -420,7 +423,7 @@ static int pgp_store_key(card_t *card, sc_cardctl_openpgp_keystore_info_t *key_i
         printf("Unknown key type %d.\n", key_info->keytype);
         LOG_FUNC_RETURN( SC_ERROR_INVALID_ARGUMENTS);
     }  
-
+printf("CHECKPOINT 1\n");
     /* We just support standard key format */
     switch (key_info->keyformat) { 
     case SC_OPENPGP_KEYFORMAT_STD: 
@@ -447,7 +450,8 @@ static int pgp_store_key(card_t *card, sc_cardctl_openpgp_keystore_info_t *key_i
  *          * will be padded later */
     }  
 
-    r = pgp_update_new_algo_attr(card, &pubkey);
+printf("CHECKPOINT 2\n");
+//    r = pgp_update_new_algo_attr(card, &pubkey);
     LOG_TEST_RET( r, "Failed to update new algorithm attributes");
 
     /* Build Extended Header list */
@@ -456,6 +460,7 @@ static int pgp_store_key(card_t *card, sc_cardctl_openpgp_keystore_info_t *key_i
         printf("Failed to build Extended Header list.\n");
         goto out;
     }
+printf("CHECKPOINT 3\n");
     /* Write to DO */
     r = pgp_put_data(card, 0x4D, data, len);
     if (r < 0) {
@@ -463,6 +468,7 @@ static int pgp_store_key(card_t *card, sc_cardctl_openpgp_keystore_info_t *key_i
         goto out;
     }
 
+printf("CHECKPOINT 4\n");
     free(data);
     data = NULL;
 
@@ -476,11 +482,11 @@ static int pgp_store_key(card_t *card, sc_cardctl_openpgp_keystore_info_t *key_i
     LOG_TEST_RET( r, "Cannot store fingerprint.\n");
     /* Update pubkey blobs (B601,B801, A401) */
     printf("Update blobs holding pubkey info.\n");
-    r = pgp_update_pubkey_blob(card, key_info->n, 8*key_info->n_len,
-                               key_info->e, 8*key_info->e_len, key_info->keytype);
+//    r = pgp_update_pubkey_blob(card, key_info->n, 8*key_info->n_len,
+//                               key_info->e, 8*key_info->e_len, key_info->keytype);
 
     printf("Update card algorithms.\n");
-    pgp_update_card_algorithms(card, &pubkey);
+//    pgp_update_card_algorithms(card, &pubkey);
 
 out:
     if (data) {
