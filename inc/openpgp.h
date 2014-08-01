@@ -2,6 +2,9 @@
 #define OPENPGP_H
 
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 enum _type {        /* DO type */
     SIMPLE      = SC_FILE_TYPE_WORKING_EF,
     CONSTRUCTED = SC_FILE_TYPE_DF
@@ -33,8 +36,8 @@ enum _access {      /* access flags for the respective DO/file */
 struct do_info {
     unsigned int    id;     /* ID of the DO in question */
 
-    enum _type  type;       /* constructed DO or not */
-    enum _access    access;     /* R/W access levels for the DO */
+    int /*enum _type*/ type;       /* constructed DO or not */
+    int /*enum _access*/    access;     /* R/W access levels for the DO */
 
     /* function to get the DO from the card:
  *  *      * only != NULL is DO if readable and not only a part of a constructed DO */
@@ -44,6 +47,9 @@ struct do_info {
     int     (*put_fn)(card_t *, unsigned int, const u8 *, size_t);
 };
 
+#ifdef __cplusplus
+}
+#endif
 
 struct blob {
     struct blob *   next;   /* pointer to next sibling */
@@ -81,7 +87,7 @@ struct pgp_priv_data {
     struct blob *       current;    /* currently selected file */
 
     enum _version       bcd_version;
-  struct do_info      *pgp_objects;
+    struct do_info      *pgp_objects;
 
     enum _card_state    state;      /* card state */   
     enum _ext_caps      ext_caps;   /* extended capabilities */
@@ -92,11 +98,15 @@ struct pgp_priv_data {
 //    sc_security_env_t   sec_env;
 };
 
+;
 
+struct blob * pgp_find_blob(card_t *card, unsigned int tag);
 int pgp_init(card_t *card);
 int pgp_get_data(card_t *card, unsigned int tag, u8 *buf, size_t buf_len);
+int pgp_put_data(card_t *card, unsigned int tag, const u8 *buf, size_t buf_len);
 int pgp_finish(card_t *card);
 int pgp_pin_cmd(card_t *card, struct sc_pin_cmd_data *data, int *tries_left);
 int pgp_get_pubkey_pem(card_t *card, unsigned int tag, u8 *buf, size_t buf_len);
+int pgp_set_blob(struct blob *blob, const u8 *data, size_t len);
 
 #endif // OPENPGP_H
