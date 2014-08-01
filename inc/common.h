@@ -235,6 +235,7 @@ extern "C" {
 
 #define C_ASN1_PUBLIC_KEY_SIZE 2
 #define C_ASN1_RSA_PUB_COEFFICIENTS_SIZE 3
+#define SC_ASN1_TAG_ESCAPE_MARKER   31
 
 typedef unsigned char u8;
 
@@ -455,6 +456,9 @@ int sc_asn1_read_tag(const u8 ** buf, size_t buflen, unsigned int *cla_out,
              unsigned int *tag_out, size_t *taglen);
 const u8 *sc_asn1_find_tag( const u8 * buf, size_t buflen, 
         unsigned int tag_in, size_t *taglen_in);
+
+int asn1_write_element(unsigned int tag, const u8 * data, 
+                size_t datalen, u8 ** out, size_t * outlen);
 
 
 int sc_append_path_id(sc_path_t *dest, const u8 *id, size_t idlen);
