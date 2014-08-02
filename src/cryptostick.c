@@ -145,6 +145,27 @@ int csVerifyPIN(card_t *card, unsigned char* pin, int pinLength)
     return 0;
 }
 
+int csVerifyAdminPIN(card_t *card, unsigned char* pin, int pinLength)
+{
+    int r;
+
+    sc_pin_cmd_data pin_data;
+    pin_data.cmd = SC_PIN_CMD_VERIFY;
+    pin_data.pin_reference = 3;
+
+    pin_data.pin1.data = (const u8*)pin ;
+    pin_data.pin1.len = pinLength;
+    pin_data.pin1.min_length = 6;
+    pin_data.pin1.max_length = 32;
+    pin_data.pin1.encoding = SC_PIN_ENCODING_ASCII;
+
+    int tries_left;
+    pgp_pin_cmd(card, &pin_data, &tries_left);
+
+    return 0;
+}
+
+
 int csDecipher(card_t *card, unsigned char* input, size_t in_len,
                 unsigned char* output, size_t out_len)
 {

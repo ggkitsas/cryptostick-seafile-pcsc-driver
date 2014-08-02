@@ -31,6 +31,11 @@ verify:
 	$(CC) $(CFLAGS) $(INC) $(LIB) -o verify $(COMMON_DEPS) $(DEMOS_DIR)/verify.c $(LDFLAGS) && \
 	mv verify ../
 
+verify_admin:
+	cd src && \
+	$(CC) $(CFLAGS) $(INC) $(LIB) -o verify_admin $(COMMON_DEPS) $(DEMOS_DIR)/verify_admin.c $(LDFLAGS) && \
+	mv verify_admin ../
+
 import_keys:
 	cd src && \
 	$(CC) $(CFLAGS) $(INC) -I"" $(LIB) -o import_keys \

@@ -22,6 +22,7 @@ int csGetPublicKey(card_t *card,
                     unsigned char** publicExponent, size_t* publicExponentLength);
 int csGetPublicExp(card_t *card, unsigned char** exp);
 int csVerifyPIN(card_t *card, unsigned char* pin, int pinLength);
+int csVerifyAdminPIN(card_t *card, unsigned char* pin, int pinLength);
 int csDecipher(card_t *card, unsigned char* input, size_t in_length, 
                 unsigned char* output, size_t out_len);
 int csEncrypt(card_t* card, unsigned char* input, unsigned inputLength,
