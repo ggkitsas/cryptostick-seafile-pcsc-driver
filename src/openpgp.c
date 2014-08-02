@@ -441,8 +441,7 @@ pgp_get_blob(card_t *card, struct blob *blob, unsigned int id,
 }
 
 /* Internal: search recursively for a blob by ID below a given root */                                                                                                                                                                 
-static int
-pgp_seek_blob(card_t *card, struct blob *root, unsigned int id,                                                                                                                                                                     
+int pgp_seek_blob(card_t *card, struct blob *root, unsigned int id,
         struct blob **ret)    
 {
     struct blob *child;       

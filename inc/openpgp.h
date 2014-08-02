@@ -108,5 +108,7 @@ int pgp_finish(card_t *card);
 int pgp_pin_cmd(card_t *card, struct sc_pin_cmd_data *data, int *tries_left);
 int pgp_get_pubkey_pem(card_t *card, unsigned int tag, u8 *buf, size_t buf_len);
 int pgp_set_blob(struct blob *blob, const u8 *data, size_t len);
+int pgp_seek_blob(card_t *card, struct blob *root, unsigned int id,
+        struct blob **ret);
 
 #endif // OPENPGP_H
