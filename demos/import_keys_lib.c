@@ -60,6 +60,66 @@ pgp_update_pubkey_blob(card_t *card, u8* modulus, size_t modulus_len,
 }
 */
 
+
+/**
+ *  * Internal: Update algorithm attribute for new key size (before generating key).                                                                                                                                                      
+ *   **/   
+static int
+pgp_update_new_algo_attr(card_t *card, sc_cardctl_openpgp_keygen_info_t *key_info)                                                                                                                                                  
+{
+    struct pgp_priv_data *priv = DRVDATA(card);
+    struct blob *algo_blob;   
+    unsigned int old_modulus_len;     /* Measured in bit */
+    unsigned int old_exponent_len; 
+    const unsigned int tag = 0x00C0 | key_info->keytype;                                                                                                                                                                               
+    u8 changed = 0;           
+    int r = SC_SUCCESS;       
+
+    /* Get old algorithm attributes */ 
+    r = pgp_seek_blob(card, priv->mf, (0x00C0 | key_info->keytype), &algo_blob);
+    LOG_TEST_RET( r, "Cannot get old algorithm attributes");
+    old_modulus_len = bebytes2ushort(algo_blob->data + 1);  /* The modulus length is coded in byte 2 & 3 */
+    printf( "Old modulus length %d, new %d.\n", old_modulus_len, key_info->modulus_len);
+    old_exponent_len = bebytes2ushort(algo_blob->data + 3);  /* The exponent length is coded in byte 3 & 4 */
+    printf( "Old exponent length %d, new %d.\n", old_exponent_len, key_info->exponent_len);                                                                                                                                    
+
+    /* Modulus */
+    /* If passed modulus_len is zero, it means using old key size */                                                                                                                                                                   
+    if (key_info->modulus_len == 0) {  
+        printf( "Use old modulus length (%d).\n", old_modulus_len);
+        key_info->modulus_len = old_modulus_len;                                                                                                                                                                                       
+    }  
+    /* To generate key with new key size */
+    else if (old_modulus_len != key_info->modulus_len) {
+        algo_blob->data[1] = key_info->modulus_len >> 8;
+        algo_blob->data[2] = key_info->modulus_len;                                                                                                                                                                                    
+        changed = 1;          
+    }  
+
+    /* Exponent */
+    if (key_info->exponent_len == 0) { 
+        printf( "Use old exponent length (%d).\n", old_exponent_len);
+        key_info->exponent_len = old_exponent_len;                                                                                                                                                                                     
+    }  
+    else if (old_exponent_len != key_info->exponent_len) {
+        algo_blob->data[3] = key_info->exponent_len >> 8; 
+        algo_blob->data[4] = key_info->exponent_len;                                                                                                                                                                                   
+        changed = 1;          
+    }  
+
+    /* If to-be-generated key has different size, we will set this new value for                                                                                                                                                       
+ *      * GENERATE ASYMMETRIC KEY PAIR to work */
+    if (changed) {
+        r = pgp_put_data(card, tag, algo_blob->data, 6);
+        /* Note: Don't use pgp_set_blob to set data, because it won't touch the real DO */
+        LOG_TEST_RET( r, "Cannot set new algorithm attributes");                                                                                                                                                             
+    }  
+
+    LOG_FUNC_RETURN( r);                                                                                                                                                                                                     
+}
+
+
+
 /**
  *  * Internal: Calculate PGP fingerprints.
  *   * Reference: GnuPG, app-openpgp.c.
@@ -254,9 +314,10 @@ set_taglength_tlv(u8 *buffer, unsigned int tag, size_t length)
  * Internal: Build Extended Header list (sec 4.3.3.7 - OpenPGP card spec v.2)                                                                                                                                                          
  */
 static int
-pgp_build_extended_header_list(card_t *card, sc_cardctl_openpgp_keystore_info_t *key_info,                                                                                                                                          
+pgp_build_extended_header_list(card_t *card, sc_cardctl_openpgp_keystore_info_t *key_info,
                                u8 **result, size_t *resultlen)                                                                                                                                                                         
 {
+    printf("DEBUG:\n\t n = %s\n\t e = %s\n\t p = %s\n\t q = %s\n", key_info->n, key_info->e, key_info->p, key_info->q);
     /* The Cardholder private key template (7F48) part */
     const size_t max_prtem_len = 7*(1 + 3);     /* 7 components */             
                                                 /* 1 for tag name (91, 92... 97)
@@ -306,10 +367,8 @@ pgp_build_extended_header_list(card_t *card, sc_cardctl_openpgp_keystore_info_t 
     /* Cardholder private key template's data part */
     memset(pritemplate, 0, max_prtem_len);                                                                                                                                                                                             
 
-printf("CHECKPOINT 2.1\n");
     /* Get required exponent length */
     alat_blob = pgp_find_blob(card, 0x00C0 | key_info->keytype);                                                                                                                                                                       
-printf("CHECKPOINT 2.2\n");
     if (!alat_blob) {         
         printf("Cannot read Algorithm Attributes\n.");
         LOG_FUNC_RETURN(SC_ERROR_OBJECT_NOT_FOUND);                                                                                                                                                                               
@@ -333,8 +392,10 @@ printf("CHECKPOINT 2.2\n");
     /* Start from beginning of pritemplate */
     p = pritemplate;
 
+printf("comp_to_add = %lu\n",comp_to_add);
     for (i = 0; i < comp_to_add; i++) {
         printf("Set Tag+Length for %s (%X).\n", componentnames[i], componenttags[i]);
+        printf("Length = %lu\n",componentlens[i]);
         len = set_taglength_tlv(p, componenttags[i], componentlens[i]);
         tpl_len += len;
 
@@ -423,7 +484,6 @@ int pgp_store_key(card_t *card, sc_cardctl_openpgp_keystore_info_t *key_info)
         printf("Unknown key type %d.\n", key_info->keytype);
         LOG_FUNC_RETURN( SC_ERROR_INVALID_ARGUMENTS);
     }  
-printf("CHECKPOINT 1\n");
     /* We just support standard key format */
     switch (key_info->keyformat) { 
     case SC_OPENPGP_KEYFORMAT_STD: 
@@ -450,17 +510,16 @@ printf("CHECKPOINT 1\n");
  *          * will be padded later */
     }  
 
-printf("CHECKPOINT 2\n");
-//    r = pgp_update_new_algo_attr(card, &pubkey);
+    r = pgp_update_new_algo_attr(card, &pubkey);
     LOG_TEST_RET( r, "Failed to update new algorithm attributes");
 
     /* Build Extended Header list */
     r = pgp_build_extended_header_list(card, key_info, &data, &len);
+
     if (r < 0) {
         printf("Failed to build Extended Header list.\n");
         goto out;
     }
-printf("CHECKPOINT 3\n");
     /* Write to DO */
     r = pgp_put_data(card, 0x4D, data, len);
     if (r < 0) {
@@ -468,9 +527,10 @@ printf("CHECKPOINT 3\n");
         goto out;
     }
 
-printf("CHECKPOINT 4\n");
     free(data);
     data = NULL;
+
+printf("n= %p e=%p\n",key_info->n, key_info->e);
 
     /* Store creation time */
     r = pgp_store_creationtime(card, key_info->keytype, &key_info->creationtime);
