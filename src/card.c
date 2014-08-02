@@ -15,10 +15,10 @@ int card_init(card_t *card)
     sc_path_t   aid;
     sc_file_t   *file = NULL;
     int r;
-    priv = (pgp_priv_data*)calloc (1, sizeof(pgp_priv_data));
-    if (!priv)
-        return SC_ERROR_OUT_OF_MEMORY;
-
+//    priv = (pgp_priv_data*)calloc (1, sizeof(pgp_priv_data));
+//    if (!priv)
+//        return SC_ERROR_OUT_OF_MEMORY;
+/*
     card->drv_data = priv;
     card->cla = 0x00;
 
@@ -30,6 +30,7 @@ int card_init(card_t *card)
         return r;
     }
 
+*/
     /* read information from AID */
     if (file && file->namelen == 16) {
         /* OpenPGP card spec 1.1 & 2.0, section 4.2.1 & 4.1.2.1 */
@@ -117,7 +118,7 @@ int connect_card(sc_reader_t *reader, card_t **card_out)
         /* Forced driver, or matched via ATR mapping from                                                                                                                                                                              
  *          * config file */
 //        card->driver = driver;
-        r = pgp_init(card);     
+        r = pgp_init(card);
         if (r) {
             printf("pgp_init() failed: %s\n", sc_strerror(r));
             goto err;
@@ -169,13 +170,13 @@ int connect_card(sc_reader_t *reader, card_t **card_out)
 */
 
         /*  Override card limitations with reader limitations.
- *           *  Note that zero means no limitations at all.
- *                */
+         *  Note that zero means no limitations at all.
+         */
 
     *card_out = card;
-        // Taken from 'opensc.conf.in'
-        card->max_send_size = 255;
-        card->max_recv_size = 256;
+    // Taken from 'opensc.conf.in'
+    card->max_send_size = 255;
+    card->max_recv_size = 256;
 
     printf("card info name:'%s', flags:0x%lX, max_send/recv_size:%li/%li\n",
         card->name,  card->flags, card->max_send_size, card->max_recv_size);

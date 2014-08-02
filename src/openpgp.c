@@ -475,7 +475,7 @@ struct blob * pgp_find_blob(card_t *card, unsigned int tag)
 
 printf("CHECKPOINT 2.1.1\n");
     /* Check if current selected blob is which we want to test*/
-printf("DEBUG: priv->current->id = %d\n", priv->current->id);
+printf("DEBUG: priv->mf = %p, priv->current = %p\n", priv->mf, priv->current);
     if (priv->current->id == tag) {
         return priv->current;
     }
@@ -486,6 +486,7 @@ printf("CHECKPOINT 2.1.2\n");
         printf( "Failed to seek the blob representing the tag %04X. Error %d.\n", tag, r);
         return NULL;
     }
+printf("CHECKPOINT 2.1.3\n");
     return blob;
 }
 
@@ -511,7 +512,7 @@ pgp_get_card_features(card_t *card)
     unsigned char *hist_bytes = card->atr.value;
     size_t atr_len = card->atr.len;
     size_t i = 0;
-//    struct blob *blob, *blob6e, *blob73;
+    struct blob *blob, *blob6e, *blob73;
 
     // parse card capabilities from historical bytes 
     while ((i < atr_len) && (hist_bytes[i] != 0x73))
@@ -529,25 +530,25 @@ pgp_get_card_features(card_t *card)
     }
 //    if (priv->bcd_version >= OPENPGP_CARD_2_0) {
         // get card capabilities from "historical bytes" DO
-/*        if ((pgp_get_blob(card, priv->mf, 0x5f52, &blob) >= 0) &&
+        if ((pgp_get_blob(card, priv->mf, 0x5f52, &blob) >= 0) &&
             (blob->data != NULL) && (blob->data[0] == 0x00)) {
             while ((i < blob->len) && (blob->data[i] != 0x73))
                 i++;
             // IS07816-4 hist bytes 3rd function table 
             if ((blob->data[i] == 0x73) && (blob->len > i+3)) {
                 /* bit 0x40 in byte 3 of TL 0x73 means "extended Le/Lc" */
-/*               if (blob->data[i+3] & 0x40) {
+               if (blob->data[i+3] & 0x40) {
                     card->caps |= CARD_CAP_APDU_EXT;
                     priv->ext_caps = (_ext_caps)((int) priv->ext_caps | EXT_CAP_APDU_EXT);
                 }
-*/
+
                 /* bit 0x80 in byte 3 of TL 0x73 means "Command chaining" */
-/*                if (hist_bytes[i+3] & 0x80)
+                if (hist_bytes[i+3] & 0x80)
                     priv->ext_caps = (_ext_caps)((int) priv->ext_caps | EXT_CAP_CHAINING);
             }
 
             /* get card status from historical bytes status indicator */
-/*            if ((blob->data[0] == 0x00) && (blob->len >= 4))
+            if ((blob->data[0] == 0x00) && (blob->len >= 4))
                 priv->state = (_card_state)blob->data[blob->len-3];
         }
 //    }
@@ -556,46 +557,46 @@ pgp_get_card_features(card_t *card)
         (pgp_get_blob(card, blob6e, 0x0073, &blob73) >= 0)) {
 
         /* get "extended capabilities" DO */
-/*        if ((pgp_get_blob(card, blob73, 0x00c0, &blob) >= 0) &&
+        if ((pgp_get_blob(card, blob73, 0x00c0, &blob) >= 0) &&
             (blob->data != NULL) && (blob->len > 0)) {
             /* in v2.0 bit 0x04 in first byte means "algorithm attributes changeable */
-/*            if ((blob->data[0] & 0x04) /*&& (card->type == SC_CARD_TYPE_OPENPGP_V2)*///)
-/*                priv->ext_caps = (_ext_caps)((int) priv->ext_caps | EXT_CAP_ALG_ATTR_CHANGEABLE);
+            if ((blob->data[0] & 0x04)) /*&& (card->type == SC_CARD_TYPE_OPENPGP_V2)*///)
+                priv->ext_caps = (_ext_caps)((int) priv->ext_caps | EXT_CAP_ALG_ATTR_CHANGEABLE);
             /* bit 0x08 in first byte means "support for private use DOs" */
-/*            if (blob->data[0] & 0x08)
+            if (blob->data[0] & 0x08)
                 priv->ext_caps = (_ext_caps)((int) priv->ext_caps | EXT_CAP_PRIVATE_DO);
             /* bit 0x10 in first byte means "support for CHV status byte changeable" */
-/*            if (blob->data[0] & 0x10)
+            if (blob->data[0] & 0x10)
                 priv->ext_caps = (_ext_caps)((int) priv->ext_caps | EXT_CAP_C4_CHANGEABLE);
             /* bit 0x20 in first byte means "support for Key Import" */
-/*            if (blob->data[0] & 0x20)
+            if (blob->data[0] & 0x20)
                 priv->ext_caps = (_ext_caps)((int) priv->ext_caps | EXT_CAP_KEY_IMPORT);
             /* bit 0x40 in first byte means "support for Get Challenge" */
-/*            if (blob->data[0] & 0x40) {
+            if (blob->data[0] & 0x40) {
                 card->caps |= SC_CARD_CAP_RNG;
                 priv->ext_caps = (_ext_caps)((int) priv->ext_caps | EXT_CAP_GET_CHALLENGE);
             }
             /* in v2.0 bit 0x80 in first byte means "support Secure Messaging" */
-/*            if ((blob->data[0] & 0x80) /*&& (card->type == SC_CARD_TYPE_OPENPGP_V2)*///)
-/*                priv->ext_caps = (_ext_caps)((int) priv->ext_caps | EXT_CAP_SM);
+            if ((blob->data[0] & 0x80)) /*&& (card->type == SC_CARD_TYPE_OPENPGP_V2)*///)
+                priv->ext_caps = (_ext_caps)((int) priv->ext_caps | EXT_CAP_SM);
 
-            if (/*(priv->bcd_version >= OPENPGP_CARD_2_0) && */ /*(blob->len >= 10)) {
+            if (/*(priv->bcd_version >= OPENPGP_CARD_2_0) && */ (blob->len >= 10)) {
                 /* max. challenge size is at bytes 3-4 */
-/*                priv->max_challenge_size = bebytes2ushort(blob->data + 2);
+                priv->max_challenge_size = bebytes2ushort(blob->data + 2);
                 /* max. cert size it at bytes 5-6 */
-/*                priv->max_cert_size = bebytes2ushort(blob->data + 4);
+                priv->max_cert_size = bebytes2ushort(blob->data + 4);
                 /* max. send/receive sizes are at bytes 7-8 resp. 9-10 */
-/*                card->max_send_size = bebytes2ushort(blob->data + 6);
+                card->max_send_size = bebytes2ushort(blob->data + 6);
                 card->max_recv_size = bebytes2ushort(blob->data + 8);
             }
         }
 
         /* get max. PIN length from "CHV status bytes" DO */
-/*        if ((pgp_get_blob(card, blob73, 0x00c4, &blob) >= 0) &&
+        if ((pgp_get_blob(card, blob73, 0x00c4, &blob) >= 0) &&
             (blob->data != NULL) && (blob->len > 1)) {
             /* 2nd byte in "CHV status bytes" DO means "max. PIN length" */
-/*            card->max_pin_len = blob->data[1];
-       }
+            card->max_pin_len = blob->data[1];
+        }
 
         /* get supported algorithms & key lengths from "algorithm attributes" DOs */
 /*        for (i = 0x00c1; i <= 0x00c3; i++) {
@@ -619,8 +620,8 @@ pgp_get_card_features(card_t *card)
                 }
             }
         }
-    }
 */
+    }
     return SC_SUCCESS;
 }
 
@@ -669,7 +670,8 @@ int pgp_init(card_t *card)
 
     /* set up the root of our fake file tree */
     priv->mf = pgp_new_blob(card, NULL, 0x3f00, file);
-printf("DEBUG: --------------------------------------------------------\n priv->mf->id = %d\n", priv->mf->id);
+
+printf("DEBUG:\n\npriv->mf = %p\n",priv->mf);
     if (!priv->mf) {
         pgp_finish(card);
         return SC_ERROR_OUT_OF_MEMORY; 
@@ -680,6 +682,7 @@ printf("DEBUG: --------------------------------------------------------\n priv->
 
     /* Populate MF - add matching blobs listed in the pgp_objects table. */
     for (info = priv->pgp_objects; (info != NULL) && (info->id > 0); info++) {
+    printf("pgp_objects: info->id = %d\n",info->id);
         if (((info->access & READ_MASK) == READ_ALWAYS) &&
             (info->get_fn != NULL)) {      
             child = pgp_new_blob(card, priv->mf, info->id, sc_file_new());
@@ -691,6 +694,15 @@ printf("DEBUG: --------------------------------------------------------\n priv->
             }
         }
     }  
+
+    /* read information from AID */
+    if (file && file->namelen == 16) {
+        /* OpenPGP card spec 1.1 & 2.0, section 4.2.1 & 4.1.2.1 */
+        priv->bcd_version = (_version)bebytes2ushort(file->name + 6);
+        /* kludge: get card's serial number from manufacturer ID + serial number */
+        memcpy(card->serialnr.value, file->name + 8, 6);
+        card->serialnr.len = 6;        
+    }
 
     /* get card_features from ATR & DOs */
     pgp_get_card_features(card);
