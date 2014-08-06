@@ -10,7 +10,7 @@
 #include "openpgp.h"
 #include "cryptostick.h"
 
-#include "import_keys_lib.h"
+//#include "import_keys_lib.h"
 
 /*
 void keygen_progress(int , int, void* cb_arg)
@@ -19,6 +19,27 @@ void keygen_progress(int , int, void* cb_arg)
 
 
 int main()
+{
+    int r;
+    card_t* card;
+    reader_list* readerList = (reader_list*)malloc(sizeof(reader_list));
+    r = pcsc_detect_readers(readerList);
+    if( !r==SC_SUCCESS)
+    {
+        printf("pcsc_detect_readers: %s\n",sc_strerror(r));
+        return -1;
+    }
+
+    connect_card(readerList->root->reader, &card);
+    card_init(card);
+
+    csVerifyAdminPIN(card, (unsigned char*)"12345678", 8);
+    csGenerateAndImportKeyPair(card, 2048);
+
+    return 0;
+}
+
+int main2()
 {
 
 
@@ -41,8 +62,6 @@ int main()
         printf("Failed to generate RSA key pair.OpenSSL error:\n %s\n", error);
         return -1;
     }
-
-
 
     unsigned char *n_hex = (unsigned char*)calloc(1, 2*2048/8);
     unsigned char *d_hex = (unsigned char*)calloc(1, 2*2048/8);

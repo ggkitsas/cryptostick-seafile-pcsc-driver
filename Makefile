@@ -9,7 +9,7 @@ INC=-I"$(shell "pwd")/../pcsc-lite-1.8.11/build/include/PCSC" -I"$(shell "pwd")/
 
 COMMON_DEPS= errors.c common.c apdu.c iso7816.c openpgp.c card.c pcsc-wrapper.c cryptostick.c
 
-.PHONY: verify get_serial_no get_public_key decipher import_keys full_demo all
+.PHONY: verify get_serial_no get_public_key decipher import_keys export_keypair unblock full_demo all
 
 get_serial_no:
 	cd src && \
@@ -40,14 +40,23 @@ import_keys:
 	cd src && \
 	$(CC) $(CFLAGS) $(INC) -I"" $(LIB) -o import_keys \
 			$(COMMON_DEPS) \
-			$(DEMOS_DIR)/import_keys_lib.c \
 			$(DEMOS_DIR)/import_keys.c \
 		    $(LDFLAGS) && \
 	mv import_keys ../
-	
+
+export_keypair:	
+	cd src && \
+	$(CC) $(CFLAGS) $(INC) $(LIB) -o export_keypair $(COMMON_DEPS) $(DEMOS_DIR)/export_keypair.c $(LDFLAGS) && \
+	mv export_keypair ../
+
+unblock:	
+	cd src && \
+	$(CC) $(CFLAGS) $(INC) $(LIB) -o unblock $(COMMON_DEPS) $(DEMOS_DIR)/unblock.c $(LDFLAGS) && \
+	mv unblock ../
+
 full_demo:
 	cd src && \
 	$(CC) $(CFLAGS) $(INC) $(LIB) -o full_demo $(COMMON_DEPS) $(DEMOS_DIR)/full_demo.c $(LDFLAGS) && \
 	mv full_demo ../
 	
-all: verify get_serial_no get_public_key decipher import_keys full_demo
+all: verify get_serial_no get_public_key decipher import_keys export_keypair unblock full_demo

@@ -5,6 +5,8 @@
 #include <openssl/rsa.h>
 #include <openssl/sha.h>
 #include <openssl/err.h>
+#include <openssl/rand.h>
+#include <openssl/pkcs12.h>
 
 #include "common.h"
 #include "openpgp.h"
@@ -140,9 +142,9 @@ int csVerifyPIN(card_t *card, unsigned char* pin, int pinLength)
     pin_data.pin1.encoding = SC_PIN_ENCODING_ASCII;
 
     int tries_left;
-    pgp_pin_cmd(card, &pin_data, &tries_left);
+    r = pgp_pin_cmd(card, &pin_data, &tries_left);
 
-    return 0;
+    return r;
 }
 
 int csVerifyAdminPIN(card_t *card, unsigned char* pin, int pinLength)
@@ -160,9 +162,30 @@ int csVerifyAdminPIN(card_t *card, unsigned char* pin, int pinLength)
     pin_data.pin1.encoding = SC_PIN_ENCODING_ASCII;
 
     int tries_left;
-    pgp_pin_cmd(card, &pin_data, &tries_left);
+    r = pgp_pin_cmd(card, &pin_data, &tries_left);
 
-    return 0;
+    return r;
+}
+
+int csUnblock(card_t* card, const char* new_pin, int newLength)
+{
+    int r;
+
+    sc_pin_cmd_data pin_data;
+    pin_data.cmd = SC_PIN_CMD_UNBLOCK;
+    pin_data.pin_reference = 1;
+
+    pin_data.pin2.data = (const u8*)new_pin ;
+    pin_data.pin2.len = newLength;
+    pin_data.pin2.min_length = 6;
+    pin_data.pin2.max_length = 32;
+    pin_data.pin2.encoding = SC_PIN_ENCODING_ASCII;
+
+    int tries_left;
+    r = pgp_pin_cmd(card, &pin_data, &tries_left);
+
+    return r;
+
 }
 
 
@@ -248,4 +271,124 @@ int csHashPublicKey(card_t *card, unsigned char hashedKey[65])
         sprintf((char*)(hashedKey + (i * 2)), "%02x", hash[i]);
     }
     hashedKey[64] = 0;
+}
+
+int csGenerateAndImportKeyPair(card_t* card, unsigned int key_length)
+{
+    int r;
+
+    // Generate Key Pair
+    ERR_load_crypto_strings();
+    char error[400];
+
+    int modulus_length = key_length; //2048; // bits
+
+    unsigned long e = 65537;
+    const char* e_hex = "100001";
+
+//  RSA *rsa = NULL;
+    RSA* rsa = RSA_new();
+
+    BIGNUM *e_bn=NULL;
+    r = BN_hex2bn(&e_bn, e_hex);
+    if(r == 0) {
+        printf("BN_hex2bn failed\n");
+        return -1;
+    }
+
+    char rand_buf[300];
+    RAND_seed(rand_buf, 300);
+    if( RAND_status() != 1)
+        printf("NOT ENOUGH ENTROPY");
+
+    // rsa = RSA_generate_key(modulus_length, e, NULL /*keygen_progress*/, NULL);
+    r = RSA_generate_key_ex(rsa, modulus_length, e_bn, NULL);
+
+    if (rsa == NULL)
+    {
+        ERR_error_string(ERR_get_error(), error);
+        printf("Failed to generate RSA key pair.OpenSSL error:\n %s\n", error);
+        return -1;
+    }
+
+    unsigned char *n_hex = (unsigned char*)calloc(1, 2*key_length/8);
+    unsigned char *d_hex = (unsigned char*)calloc(1, 2*key_length/8);
+    unsigned char *p_hex = (unsigned char*)calloc(1, 2*key_length/8);
+    unsigned char *q_hex = (unsigned char*)calloc(1, 2*key_length/8);
+    if (!(  n_hex = (unsigned char*) BN_bn2hex((const BIGNUM*)rsa->n)  ))
+    {
+        printf("Modulo parsing error\n");
+        return -1;
+    }
+    if (!(  d_hex = (unsigned char*) BN_bn2hex((const BIGNUM*)rsa->d)  ))
+    {
+        printf("Private exponent parsing error\n");
+        return -1;
+    }
+    if (!(  p_hex = (unsigned char*) BN_bn2hex((const BIGNUM*)rsa->q)  ))
+    {
+        printf("Private exponent parsing error\n");
+        return -1;
+    }
+    if (!(  q_hex = (unsigned char*) BN_bn2hex((const BIGNUM*)rsa->p)  ))
+    {
+        printf("Private exponent parsing error\n");
+        return -1;
+    }
+    printf("Public modulus:\n\t%s\n", n_hex);
+    printf("Private exponent:\n\t%s\n", d_hex);
+    printf("Prime p:\n\t%s\n", p_hex);
+    printf("Prime q:\n\t%s\n", q_hex);
+
+
+    // Import Key Pair
+    sc_cardctl_openpgp_keystore_info_t key_info;
+    key_info.keytype = SC_OPENPGP_KEY_ENCR;
+    key_info.keyformat = SC_OPENPGP_KEYFORMAT_STD;
+    
+    /* n */
+    unsigned char* n_bin = (unsigned char*)calloc(1, modulus_length/8);
+    key_info.n_len = BN_bn2bin(rsa->n, n_bin);
+    key_info.n = n_bin;
+ 
+    /* e */
+    key_info.e = (u8*)calloc(1, 4);
+    key_info.e_len = 4;  
+    if ((r = hex_to_bin(e_hex, key_info.e, &(key_info.e_len))) != SC_SUCCESS)
+    {
+        printf("hex_to_bin ERROR\n");
+    if(r == SC_ERROR_BUFFER_TOO_SMALL)
+        printf("SC_ERROR_BUFFER_TOO_SMALL\n");
+        return -1;
+    }
+
+    /* p */
+    unsigned char* p_bin = (unsigned char*)calloc(1, strlen((const char*)p_hex)/2);
+    key_info.p_len = BN_bn2bin(rsa->p, p_bin);
+    key_info.p = p_bin;
+
+    /* q */
+    unsigned char* q_bin = (unsigned char*)calloc(1, strlen((const char*)q_hex)/2);
+    key_info.q_len = BN_bn2bin(rsa->q, q_bin);
+    key_info.q = q_bin;
+
+    
+    printf("Lengths: n = %lu\ne= %lu\np = %lu\nq = %lu\n",key_info.n_len, key_info.e_len, key_info.p_len, key_info.q_len);
+
+    if( (r = pgp_store_key(card, &key_info)) != 0)
+        printf("pgp_store_key error: %d\n",r);
+
+    // Cleanups
+    free(rsa);
+    free(n_bin);
+    free(n_hex);
+    free(d_hex);
+}
+
+
+int csExportKeyPairToFile(const char* file_path)
+{
+    FILE* fp = fopen(file_path, "w+");
+    PKCS12* p12;
+    i2d_PKCS12_fp(fp, p12);
 }
