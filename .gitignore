@@ -5,6 +5,9 @@ decipher
 full_demo
 get_serial_no
 import_keys
+export_keypair
+unblock
+verify_admin
 
 tags
 *.swp
