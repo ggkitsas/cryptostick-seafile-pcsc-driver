@@ -2,12 +2,12 @@
 #define OPENPGP_MSG_H
 
 #include <stdio.h>
-#include <stlib.h>
+#include <stdlib.h>
 #include <string.h>
 
 /*------------- PTag utilities ------------*/
-#define VALIDATE_TAG(tag) ((tag) & 0x80 == 0x80 ? 1:0)
-#define IS_OLD_FORMAT(tag) ((tag) & 0x40 ? 1:0)
+#define VALIDATE_TAG(tag) (((tag) & 0x80) == 0x80 ? 1:0)
+#define IS_OLD_FORMAT(tag) (((tag) & 0x40) == 0x00 ? 1:0)
 
 /*   length   */
 #define OLD_FORMAT_GET_TAG(tag) ((tag) & OLD_FORMAT_TAG_MASK)
@@ -17,21 +17,12 @@
 #define TWO_OCTET_LENGTH            0x01
 #define FIVE_OCTET_LENGTH           0x02
 #define INDETERMINATE_OCTET_LENGTH  0x03
-#define CALC_LENGTH_LEN (tag, length_len)                           \
-                    switch (OLD_FORMAT_GET_LENGTH_TYPE((tag))) {    \
-                        case ONE_OCTET_LENGTH:                      \
-                            ##length_len = 1;                       \
-                            break;                                  \
-                        case TWO_OCTET_LENGTH:                      \
-                            ##length_len = 2;                       \
-                            break;                                  \
-                        case FIVE_OCTET_LENGTH:                     \
-                            ##length_len = 5;                       \
-                            break;                                  \
-                        default:                                    \
-                            printf("Unsupported length type\n");    \
-                            break;                                  \
-                    }
+
+#define CALC_LENGTH_LEN(tag)           \
+                (IS_OLD_FORMAT((tag)) ? \
+                (OLD_FORMAT_GET_LENGTH_TYPE((tag)) == ONE_OCTET_LENGTH ? 1 : \
+                (OLD_FORMAT_GET_LENGTH_TYPE((tag)) == TWO_OCTET_LENGTH ? 2 : \
+                (OLD_FORMAT_GET_LENGTH_TYPE((tag)) == FIVE_OCTET_LENGTH ? 5 : 0))) : 0)
 
 /*   tag   */
 #define OLD_FORMAT_TAG_MASK 0x3c
@@ -57,17 +48,19 @@
 #define SYM_ENC_INTEG_DATA_TAG      0x18
 #define MODIF_DETECT_CODE_TAG       0x19
 
-#define GET_OLD_FORMAT_TAG(tag) ( ((tag) & OLD_FORMAT_TAG_MASK) << 2)
+#define GET_OLD_FORMAT_TAG(tag) ( ((tag) & OLD_FORMAT_TAG_MASK) >> 2)
 #define GET_NEW_FORMAT_TAG(tag) ((tag) & NEW_FORMAT_TAG_MASK)
 #define GET_TAG(tag) (IS_OLD_FORMAT((tag)) ? GET_OLD_FORMAT_TAG((tag)) : GET_NEW_FORMAT_TAG((tag)))
 
 #define IS_PUB_KEY_PACKET(tag) (GET_TAG((tag)) == PUBLIC_KEY_TAG || GET_TAG((tag)) == PUBLIC_SUBKEY_TAG ? 1:0)
 #define IS_SECRET_KEY_PACKET(tag) (GET_TAG((tag)) == SECRET_KEY_TAG || GET_TAG((tag)) == SECRET_SUBKEY_TAG ? 1:0)
 
-             
+ 
 typedef struct _pgp_message {
     int packet_type;
     void* pgp_packet;
+    
+    struct _pgp_message* next;
 }pgp_message;
 
 typedef struct _pgp_packet_header {
@@ -75,6 +68,8 @@ typedef struct _pgp_packet_header {
     unsigned char* length;
 }pgp_packet_header;
 
+
+/*----------- Packet structures -----------*/
 typedef struct _pgp_pubkey_packet {
     unsigned char version;
     unsigned char creation_time[4];
@@ -85,7 +80,9 @@ typedef struct _pgp_pubkey_packet {
 }pgp_pubkey_packet;
 
 
-int read_pgp_packet();
-int read_pgp_msg_file(const char* filepath);
+void pgp_print_pubkey_packet(pgp_pubkey_packet* pgp_packet);
+int pgp_read_pubkey_packet(FILE* fp, pgp_pubkey_packet** pubkey_packet);
+int pgp_read_packet(FILE* fp, void** pgp_packet, pgp_packet_header** hdr);
+int pgp_read_msg_file(const char* filepath, pgp_message* msg);
 
 #endif // OPENPGP_MSG_H
