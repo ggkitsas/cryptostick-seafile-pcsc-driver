@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+
 /*------------- PTag utilities ------------*/
 #define VALIDATE_TAG(tag) (((tag) & 0x80) == 0x80 ? 1:0)
 #define IS_OLD_FORMAT(tag) (((tag) & 0x40) == 0x00 ? 1:0)
@@ -55,7 +56,20 @@
 #define IS_PUB_KEY_PACKET(tag) (GET_TAG((tag)) == PUBLIC_KEY_TAG || GET_TAG((tag)) == PUBLIC_SUBKEY_TAG ? 1:0)
 #define IS_SECRET_KEY_PACKET(tag) (GET_TAG((tag)) == SECRET_KEY_TAG || GET_TAG((tag)) == SECRET_SUBKEY_TAG ? 1:0)
 
- 
+
+/*----------- Errors ---------*/
+#define FILE_READ_BYTES_PREMATURE_EOF   -1
+/*------------------ ---------*/
+
+
+/*---------- Data Element Format ------------*/
+typedef struct _pgp_mpi {
+    unsigned char length[2]; // In bits
+    unsigned char* value;
+}pgp_mpi;
+/*-------------------------------------------*/
+
+
 typedef struct _pgp_message {
     int packet_type;
     void* pgp_packet;
@@ -63,22 +77,22 @@ typedef struct _pgp_message {
     struct _pgp_message* next;
 }pgp_message;
 
+
+/*----------- Packet structures -----------*/
 typedef struct _pgp_packet_header {
     unsigned char ptag;
     unsigned char* length;
 }pgp_packet_header;
 
-
-/*----------- Packet structures -----------*/
 typedef struct _pgp_pubkey_packet {
     unsigned char version;
     unsigned char creation_time[4];
     unsigned char algo;
 
-    unsigned char* modulus;
-    unsigned char exponent[4];
+    pgp_mpi* modulus;
+    pgp_mpi* exponent;
 }pgp_pubkey_packet;
-
+/*----------------------------------------*/
 
 void pgp_print_pubkey_packet(pgp_pubkey_packet* pgp_packet);
 int pgp_read_pubkey_packet(FILE* fp, pgp_pubkey_packet** pubkey_packet);
