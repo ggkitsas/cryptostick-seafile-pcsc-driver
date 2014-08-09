@@ -48,6 +48,7 @@ openpgp-file:
 	cd src && \
 	$(CC) $(CFLAGS) $(INC) -I"" $(LIB) -o openpgp-file \
 			$(COMMON_DEPS) \
+			openpgp-msg.c \
 			$(DEMOS_DIR)/openpgp-file.c \
 		    $(LDFLAGS) && \
 	mv openpgp-file ../
