@@ -8,6 +8,7 @@ import_keys
 export_keypair
 unblock
 verify_admin
+openpgp-file
 
 tags
 *.swp
