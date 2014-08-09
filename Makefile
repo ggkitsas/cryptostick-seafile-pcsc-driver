@@ -9,7 +9,7 @@ INC=-I"$(shell "pwd")/../pcsc-lite-1.8.11/build/include/PCSC" -I"$(shell "pwd")/
 
 COMMON_DEPS= errors.c common.c apdu.c iso7816.c openpgp.c card.c pcsc-wrapper.c cryptostick.c
 
-.PHONY: verify get_serial_no get_public_key decipher import_keys export_keypair unblock full_demo all
+.PHONY: verify get_serial_no get_public_key decipher import_keys openpgp-file export_keypair unblock full_demo all
 
 get_serial_no:
 	cd src && \
@@ -44,6 +44,14 @@ import_keys:
 		    $(LDFLAGS) && \
 	mv import_keys ../
 
+openpgp-file:
+	cd src && \
+	$(CC) $(CFLAGS) $(INC) -I"" $(LIB) -o openpgp-file \
+			$(COMMON_DEPS) \
+			$(DEMOS_DIR)/openpgp-file.c \
+		    $(LDFLAGS) && \
+	mv openpgp-file ../
+
 export_keypair:	
 	cd src && \
 	$(CC) $(CFLAGS) $(INC) $(LIB) -o export_keypair $(COMMON_DEPS) $(DEMOS_DIR)/export_keypair.c $(LDFLAGS) && \
@@ -59,4 +67,4 @@ full_demo:
 	$(CC) $(CFLAGS) $(INC) $(LIB) -o full_demo $(COMMON_DEPS) $(DEMOS_DIR)/full_demo.c $(LDFLAGS) && \
 	mv full_demo ../
 	
-all: verify get_serial_no get_public_key decipher import_keys export_keypair unblock full_demo
+all: verify get_serial_no get_public_key decipher import_keys openpgp-file export_keypair unblock full_demo
