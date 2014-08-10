@@ -60,10 +60,102 @@
 #define S2K_TYPE_SIMPLE              0x00
 #define S2K_TYPE_SALTED              0x01
 #define S2K_TYPE_ITERATED_SALTED     0x03
+#define S2K_TYPE_GNUPG               101  // gnupg extension
 /*-------------------------------- ------------------*/
+
+/*---------------- Algorithms  -----------------*/
+// Hash algos
+#define HASH_MD5         1
+#define HASH_SHA1        2
+#define HASH_RIPEMD160   3
+#define HASH_SHA256      8
+#define HASH_SHA384      9
+#define HASH_SHA512      10
+#define HASH_SHA224      11
+
+#define HASH_MD5_HASH_SIZE         16
+#define HASH_SHA1_HASH_SIZE        20
+#define HASH_RIPEMD160_HASH_SIZE   20
+#define HASH_SHA256_HASH_SIZE      32
+#define HASH_SHA384_HASH_SIZE      48
+#define HASH_SHA512_HASH_SIZE      64
+#define HASH_SHA224_HASH_SIZE      28
+
+inline
+unsigned int get_hash_size(unsigned char hash_algo)
+{
+    switch(hash_algo){
+        case HASH_MD5:
+            return HASH_MD5_HASH_SIZE;
+        case HASH_SHA1:
+        case HASH_RIPEMD160:
+            return HASH_SHA1_HASH_SIZE;
+        case HASH_SHA256:
+            return HASH_SHA256_HASH_SIZE;
+        case HASH_SHA384:
+            return HASH_SHA384_HASH_SIZE;
+        case HASH_SHA512:
+            return HASH_SHA512_HASH_SIZE;
+        case HASH_SHA224:
+            return HASH_SHA224_HASH_SIZE;
+        default:
+            printf("Error: Unsupported hash algorithm\n");
+            return 0; 
+    }
+}
+
+// Public key algos
+#define PUB_RSA_ENC_SIG 1
+#define PUB_RSA_ENC     2
+#define PUB_RSA_SIG     3
+#define PUB_ELGAMAL_ENC 16
+#define PUB_DSA         17
+
+// Symmetric encryption
+#define SYM_PLAINTEXT   0
+#define SYM_IDEA        1
+#define SYM_TRIPLEDES   2
+#define SYM_CAST5       3
+#define SYM_BLOWFISH    4
+#define SYM_AES128      7
+#define SYM_AES192      8
+#define SYM_AES256      9
+#define SYM_TWOFISH256  10
+
+#define SYM_IDEA_BLOCK_SIZE        8
+#define SYM_TRIPLEDES_BLOCK_SIZE   8
+#define SYM_CAST5_BLOCK_SIZE       8
+#define SYM_BLOWFISH_BLOCK_SIZE    8
+#define SYM_AES128_BLOCK_SIZE      16
+#define SYM_AES192_BLOCK_SIZE      16
+#define SYM_AES256_BLOCK_SIZE      16
+#define SYM_TWOFISH256_BLOCK_SIZE  16
+
+inline
+unsigned int get_block_size(unsigned char sym_algo)
+{
+    switch(sym_algo) {
+        case SYM_IDEA:
+        case SYM_TRIPLEDES:
+        case SYM_CAST5:
+        case SYM_BLOWFISH:
+            return SYM_IDEA_BLOCK_SIZE;
+        case SYM_AES128:
+        case SYM_AES192:
+        case SYM_AES256:
+        case SYM_TWOFISH256:
+            return SYM_AES128_BLOCK_SIZE;
+        default:
+            printf("Error: Unsupported symmetric encryption algorithm\n");
+            return 0;
+    }
+}
+/*--------------------------------------------------*/
 
 /*----------- Errors ---------*/
 #define FILE_READ_BYTES_PREMATURE_EOF   -1
+
+#define UNSUPPROTED_S2K     -1
 /*------------------ ---------*/
 
 
@@ -76,7 +168,7 @@ typedef struct _pgp_mpi {
 typedef struct _pgp_s2k {
     unsigned char type;
     unsigned char hash_algo;
-    unsigned char salt[10];
+    unsigned char salt[8];
     unsigned char count;
 }pgp_s2k;
 /*-------------------------------------------*/
@@ -120,8 +212,8 @@ typedef struct _pgp_seckey_data {
 typedef struct _pgp_seckey_packet {
     pgp_pubkey_packet* pubkey_packet;
 
-    unsigned s2k_usage;
-    unsigned char* algo;
+    unsigned char s2k_usage;
+    unsigned char* enc_algo;
     pgp_s2k* s2k;
     unsigned char* iv;
 
@@ -130,6 +222,7 @@ typedef struct _pgp_seckey_packet {
 /*----------------------------------------*/
 
 void pgp_print_pubkey_packet(pgp_pubkey_packet* pgp_packet);
+void pgp_print_seckey_packet(pgp_seckey_packet* pkt);
 int pgp_read_pubkey_packet(FILE* fp, pgp_pubkey_packet** pubkey_packet);
 int pgp_read_packet(FILE* fp, void** pgp_packet, pgp_packet_header** hdr);
 int pgp_read_msg_file(const char* filepath, pgp_message* msg);
