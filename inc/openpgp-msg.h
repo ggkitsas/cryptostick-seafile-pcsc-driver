@@ -56,6 +56,11 @@
 #define IS_PUB_KEY_PACKET(tag) (GET_TAG((tag)) == PUBLIC_KEY_TAG || GET_TAG((tag)) == PUBLIC_SUBKEY_TAG ? 1:0)
 #define IS_SECRET_KEY_PACKET(tag) (GET_TAG((tag)) == SECRET_KEY_TAG || GET_TAG((tag)) == SECRET_SUBKEY_TAG ? 1:0)
 
+/*----------------- String to Key  ------------------*/
+#define S2K_TYPE_SIMPLE              0x00
+#define S2K_TYPE_SALTED              0x01
+#define S2K_TYPE_ITERATED_SALTED     0x03
+/*-------------------------------- ------------------*/
 
 /*----------- Errors ---------*/
 #define FILE_READ_BYTES_PREMATURE_EOF   -1
@@ -67,6 +72,13 @@ typedef struct _pgp_mpi {
     unsigned char length[2]; // In bits
     unsigned char* value;
 }pgp_mpi;
+
+typedef struct _pgp_s2k {
+    unsigned char type;
+    unsigned char hash_algo;
+    unsigned char salt[10];
+    unsigned char count;
+}pgp_s2k;
 /*-------------------------------------------*/
 
 
@@ -87,11 +99,34 @@ typedef struct _pgp_packet_header {
 typedef struct _pgp_pubkey_packet {
     unsigned char version;
     unsigned char creation_time[4];
+    unsigned char* validity_period; // V3 pubkey packet, 
+                                    // 2 byte long,
+                                    // use pointer to encode it's absence with NULL
     unsigned char algo;
 
     pgp_mpi* modulus;
     pgp_mpi* exponent;
 }pgp_pubkey_packet;
+
+typedef struct _pgp_seckey_data {
+    unsigned char* hash; // hash or checksum, depending of s2k_usage
+
+    pgp_mpi* rsa_d;
+    pgp_mpi* rsa_p;
+    pgp_mpi* rsa_q;
+    pgp_mpi* rsa_u;
+}pgp_seckey_data;
+
+typedef struct _pgp_seckey_packet {
+    pgp_pubkey_packet* pubkey_packet;
+
+    unsigned s2k_usage;
+    unsigned char* algo;
+    pgp_s2k* s2k;
+    unsigned char* iv;
+
+    pgp_seckey_data* seckey_data;
+}pgp_seckey_packet;
 /*----------------------------------------*/
 
 void pgp_print_pubkey_packet(pgp_pubkey_packet* pgp_packet);
