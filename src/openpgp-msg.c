@@ -78,6 +78,16 @@ void print_mpi(const char* title, pgp_mpi* mpi)
     print_bytearr("\tvalue", mpi->value, bits2bytes( bytearr2uint(mpi->length, 2) ));
 }
 
+static
+void print_s2k(pgp_s2k* s2k)
+{
+    printf("S2K struct:\n");
+    printf("\tType: %.2x\n",s2k->type);
+    printf("\tHash algorithm: %.2x\n",s2k->hash_algo);
+    print_bytearr("\tSalt", s2k->salt, 8);
+    printf("\tCount: %.2x\n",s2k->count);
+}
+
 void pgp_print_pubkey_packet(pgp_pubkey_packet* pgp_packet)
 {
     printf("Version: %.2x\n", pgp_packet->version);
@@ -86,6 +96,35 @@ void pgp_print_pubkey_packet(pgp_pubkey_packet* pgp_packet)
     print_mpi("Modulus", pgp_packet->modulus);
     print_mpi("Exponent", pgp_packet->exponent);
 }
+
+
+static
+void print_seckey_data(pgp_seckey_data* data)
+{
+    print_mpi("RSA d", data->rsa_d);
+    print_mpi("RSA p", data->rsa_p);
+    print_mpi("RSA q", data->rsa_q);
+    print_mpi("RSA u", data->rsa_u);
+}
+
+void pgp_print_seckey_packet(pgp_seckey_packet* pkt)
+{
+    pgp_print_pubkey_packet(pkt->pubkey_packet);
+
+    printf("S2K Usage: %.2x\n", pkt->s2k_usage);
+
+    if(pkt->enc_algo)
+        printf("Encryption Algorithm: %.2x\n", pkt->enc_algo[0]);
+
+    if(pkt->s2k)
+        print_s2k(pkt->s2k);
+
+    if(pkt->iv)
+        print_bytearr("IV", pkt->iv, get_block_size(pkt->enc_algo[0]) );
+
+    print_seckey_data(pkt->seckey_data);
+}
+
 
 int pgp_read_mpi(FILE* fp, pgp_mpi** mpi)
 {
@@ -109,11 +148,28 @@ int pgp_read_s2k(FILE* fp, pgp_s2k** s2k)
     pgp_s2k* tmp_s2k = (pgp_s2k*)calloc(1, sizeof(pgp_s2k));
 
     tmp_s2k->type = fgetc(fp);
+    if( tmp_s2k->type == S2K_TYPE_GNUPG )
+    {
+        printf("GnuPG keyrings not supported yet\n");
+        return UNSUPPROTED_S2K;
+    } else if ( tmp_s2k->type != S2K_TYPE_SIMPLE &&
+                tmp_s2k->type != S2K_TYPE_SALTED &&
+                tmp_s2k->type != S2K_TYPE_ITERATED_SALTED) {
+        printf("Unsupported s2k type\n");
+        return UNSUPPROTED_S2K;
+    }
+
     tmp_s2k->hash_algo = fgetc(fp);
+
     if( tmp_s2k->type > S2K_TYPE_SIMPLE )
-        file_read_bytes(fp, 10, tmp_s2k->salt);
+        file_read_bytes(fp, 8, tmp_s2k->salt);
+//    else
+//        tmp_s2k->salt = NULL;
+
     if( tmp_s2k->type == S2K_TYPE_ITERATED_SALTED )
         tmp_s2k->count = fgetc(fp);
+    else
+        tmp_s2k->count = 0;
 
     *s2k = tmp_s2k;
     return 0;
@@ -150,9 +206,10 @@ int pgp_read_seckey_data(FILE* fp, pgp_seckey_packet* seckey_packet)
 {
     seckey_packet->seckey_data = (pgp_seckey_data*)calloc(1, sizeof(pgp_seckey_data));
 
-    if (seckey_packet->s2k_usage == 0xfe ) // TODO: find hash length
-        file_read_bytes_alloc(fp, ,&(seckey_packet->seckey_data->hash));
-    else
+    if (seckey_packet->s2k_usage == 0xfe || seckey_packet->s2k_usage == 0x00)
+        file_read_bytes_alloc(fp, 20 /*get_hash_size(seckey_packet->s2k->hash_algo)*/,
+                            &(seckey_packet->seckey_data->hash));
+    else 
         file_read_bytes_alloc(fp, 2, &(seckey_packet->seckey_data->hash));
 
     pgp_read_mpi(fp, &(seckey_packet->seckey_data->rsa_d));
@@ -167,24 +224,24 @@ int pgp_read_seckey_packet(FILE* fp, pgp_seckey_packet** seckey_packet)
     pgp_seckey_packet* seckey_pkt = (pgp_seckey_packet*)calloc(1, sizeof(pgp_seckey_packet));
 
     pgp_read_pubkey_packet(fp, &(seckey_pkt->pubkey_packet));
-
     seckey_pkt->s2k_usage = fgetc(fp);
     if ( seckey_pkt->s2k_usage == 0xff || 
          seckey_pkt->s2k_usage == 0xfe ) {
-        file_read_bytes_alloc(fp, 1, &(seckey_pkt->algo));
-        // TODO: find s2k length
+        file_read_bytes_alloc(fp, 1, &(seckey_pkt->enc_algo));
         pgp_read_s2k(fp, &(seckey_pkt->s2k));
     } else {
-        seckey_pkt->algo = NULL;
+        seckey_pkt->enc_algo = &(seckey_pkt->s2k_usage);
         seckey_pkt->s2k = NULL;
     }
 
     if( seckey_pkt->s2k_usage != 0x00 )
-        file_read_bytes_alloc(fp, block_size, &(seckey_pkt->iv));
+        file_read_bytes_alloc(fp, get_block_size(seckey_pkt->enc_algo[0]), &(seckey_pkt->iv));
     else
         seckey_pkt->iv = NULL;
 
     pgp_read_seckey_data(fp, seckey_pkt);
+
+    *seckey_packet = seckey_pkt;
 }
 
 /*
@@ -228,13 +285,14 @@ int pgp_read_packet(FILE* fp, void** pgp_packet, pgp_packet_header** hdr)
         file_read_bytes(fp, length_len-1, &(tmp_hdr->length[1]));
     }
 
+    print_bytearr("Packet length", tmp_hdr->length, 4);
+
     if ( IS_PUB_KEY_PACKET(tmp_hdr->ptag)) {
         pgp_pubkey_packet* pub_packet;
         pgp_read_pubkey_packet(fp, &pub_packet);
         *pgp_packet = (void*)pub_packet;
     }
 
-    // TODO: read secret key packet fields
     if ( IS_SECRET_KEY_PACKET(tmp_hdr->ptag) ) {
         pgp_seckey_packet* sec_packet;
         pgp_read_seckey_packet(fp, &sec_packet);
