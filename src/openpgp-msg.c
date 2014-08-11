@@ -26,7 +26,7 @@ const char* ask_passphrase()
 }
 
 static
-void pgp_hash(const char* passphrase, pgp_s2k* s2k, unsigned char** hash)
+void pgp_hash(const char* passphrase, unsigned char* seed, pgp_s2k* s2k, unsigned char** hash)
 {
     int i;
 
@@ -42,6 +42,9 @@ void pgp_hash(const char* passphrase, pgp_s2k* s2k, unsigned char** hash)
     mdctx = EVP_MD_CTX_create();
     EVP_DigestInit_ex(mdctx, md, NULL);
 
+    // Preloading context with seed
+    if(seed)
+        EVP_DigestUpdate(mdctx, seed, strlen(passphrase));
 
     // Caclulate hash
     if (s2k->type == S2K_TYPE_SIMPLE) {
@@ -84,21 +87,26 @@ void pgp_derive_key(const char* passphrase, pgp_seckey_packet* pkt, unsigned cha
 
     if (hash_size >= key_size) {
         // Hash once and truncate if necessary
-        pgp_hash(passphrase, pkt->s2k, &hash);
+        pgp_hash(passphrase, NULL,  pkt->s2k, &hash);
         memcpy(key, hash, key_size);
     } else {
         // Hash until we have enough octets for the symmetric key
         // truncate at the end if needed
 
         int num_octets_cpy;
+        unsigned char* seed = (unsigned char*)"";
         for(i=0; i<key_size ; i+=hash_size) {
-            pgp_hash(passphrase, pkt->s2k, &hash);
+            pgp_hash(passphrase, seed, pkt->s2k, &hash);
             num_octets_cpy = key_size > i+hash_size ? hash_size: key_size-i;
             memcpy(&(key[i]), hash, hash_size);
+            free(seed);
+            seed = (unsigned char*) calloc((i/hash_size)+1, sizeof(unsigned char) );
             free(hash);
         }
+        free(seed);
     }
 }
+
 
 static
 unsigned int bits2bytes(unsigned int bits)
