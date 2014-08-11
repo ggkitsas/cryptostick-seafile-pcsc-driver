@@ -195,8 +195,8 @@ unsigned int get_key_size(unsigned char sym_algo)
             return SYM_IDEA_KEY_SIZE;
         case SYM_TRIPLEDES:
             return SYM_TRIPLEDES_KEY_SIZE;
-        case SYM_AES192_KEY_SIZE:
-            return SYM_AES192;
+        case SYM_AES192:
+            return SYM_AES192_KEY_SIZE;
         case SYM_AES256:
         case SYM_TWOFISH256:
             return SYM_AES256_KEY_SIZE;
@@ -205,6 +205,31 @@ unsigned int get_key_size(unsigned char sym_algo)
             return 0;
     }
 }
+
+inline
+const char* get_cipher_name(unsigned char cipher_algo)
+{
+    switch(hash_algo) {
+        case SYM_IDEA:
+            return "idea-cfb";
+        case SYM_CAST5:
+            return "cast-cfb";
+        case SYM_BLOWFISH:
+            return "bf-cfb";
+        case SYM_AES128:
+            return "aes-128-cfb";
+        case SYM_TRIPLEDES:
+            return "des-ede3-cfb";
+        case SYM_AES192:
+            return "aes-192-cfb";
+        case SYM_AES256:
+            return "aes-256-cfb";
+        case SYM_TWOFISH256: // Not available in OpenSSL
+        default:
+            printf("Error: Unsupported symmetric encryption algorithm\n");
+            return 0;
+    }
+} 
 /*--------------------------------------------------*/
 
 /*----------- Errors ---------*/
