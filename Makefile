@@ -9,7 +9,12 @@ INC=-I"$(shell "pwd")/../pcsc-lite-1.8.11/build/include/PCSC" -I"$(shell "pwd")/
 
 COMMON_DEPS= errors.c common.c apdu.c iso7816.c openpgp.c card.c pcsc-wrapper.c cryptostick.c
 
-.PHONY: verify get_serial_no get_public_key decipher import_keys openpgp-file export_keypair unblock full_demo all
+.PHONY: openssl_evp verify get_serial_no get_public_key decipher import_keys openpgp-file export_keypair unblock full_demo all
+
+openssl_evp:
+	cd src && \
+	$(CC) $(CFLAGS) $(INC) $(LIB) -o openssl_evp $(DEMOS_DIR)/openssl_evp.c $(LDFLAGS) && \
+	mv openssl_evp ../
 
 get_serial_no:
 	cd src && \
@@ -68,4 +73,4 @@ full_demo:
 	$(CC) $(CFLAGS) $(INC) $(LIB) -o full_demo $(COMMON_DEPS) $(DEMOS_DIR)/full_demo.c $(LDFLAGS) && \
 	mv full_demo ../
 	
-all: verify get_serial_no get_public_key decipher import_keys openpgp-file export_keypair unblock full_demo
+all: openssl_evp verify get_serial_no get_public_key decipher import_keys openpgp-file export_keypair unblock full_demo

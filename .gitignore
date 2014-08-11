@@ -9,6 +9,7 @@ export_keypair
 unblock
 verify_admin
 openpgp-file
+openssl_evp
 
 tags
 *.swp
