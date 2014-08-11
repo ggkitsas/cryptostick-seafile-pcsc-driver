@@ -324,11 +324,17 @@ int pgp_read_seckey_data(FILE* fp, pgp_seckey_packet* seckey_packet, unsigned ch
     seckey_packet->seckey_data = (pgp_seckey_data*)calloc(1, sizeof(pgp_seckey_data));
 
     if(seckey_packet->s2k_usage == 0x00) { // Plain
-        file_read_bytes_alloc(fp, 20 /*get_hash_size(seckey_packet->s2k->hash_algo)*/,
-                            &(seckey_packet->seckey_data->hash));
-    } else if (seckey_packet->s2k_usage == 0xfe) {
-        
-    } else { // No S2K
+        file_read_bytes_alloc(fp, 20, &(seckey_packet->seckey_data->hash));
+        pgp_read_mpi(fp, &(seckey_packet->seckey_data->rsa_d));
+        pgp_read_mpi(fp, &(seckey_packet->seckey_data->rsa_p));
+        pgp_read_mpi(fp, &(seckey_packet->seckey_data->rsa_q));
+        pgp_read_mpi(fp, &(seckey_packet->seckey_data->rsa_u));
+    } else {
+        if (seckey_packet->s2k_usage == 0xfe)
+            
+        if (seckey_packet->s2k_usage == 0xff)
+            
+    } else { // TODO: No S2K
     }
 
 /*
@@ -337,10 +343,6 @@ int pgp_read_seckey_data(FILE* fp, pgp_seckey_packet* seckey_packet, unsigned ch
     else 
         file_read_bytes_alloc(fp, 2, &(seckey_packet->seckey_data->hash));
 
-    pgp_read_mpi(fp, &(seckey_packet->seckey_data->rsa_d));
-    pgp_read_mpi(fp, &(seckey_packet->seckey_data->rsa_p));
-    pgp_read_mpi(fp, &(seckey_packet->seckey_data->rsa_q));
-    pgp_read_mpi(fp, &(seckey_packet->seckey_data->rsa_u));
 */
 
 }
