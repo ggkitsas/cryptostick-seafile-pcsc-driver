@@ -213,7 +213,7 @@ const char* get_cipher_name(unsigned char cipher_algo)
         case SYM_IDEA:
             return "idea-cfb";
         case SYM_CAST5:
-            return "cast-cfb";
+            return "cast5-cfb";
         case SYM_BLOWFISH:
             return "bf-cfb";
         case SYM_AES128:
