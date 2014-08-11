@@ -312,6 +312,40 @@ int pgp_read_pubkey_packet(FILE* fp, pgp_pubkey_packet** pubkey_packet)
     return 0;
 }
 
+
+static
+EVP_CIPHER_CTX* pgp_cipher_init(unsigned int cipher_id, 
+                    unsigned char* key, unsigned char* iv, int enc_dec)
+{
+    EVP_CIPHER_CTX *cipherctx;
+    const EVP_CIPHER *cipher;
+
+    OpenSSL_add_all_ciphers();
+    cipher = EVP_get_cipherbyname( get_cipher_name(cipher_id) );
+    cipherctx = EVP_CIPHER_CTX_new();
+    EVP_CipherInit_ex(cipherctx, cipher, NULL, key, iv, enc_dec);
+
+    return cipherctx;
+}
+
+static
+void pgp_cipher_update( EVP_CIPHER_CTX* cipherctx, 
+                        unsigned char* data_in, int inlen,
+                        unsigned char** data_out, int* outlen)
+{
+    *data_out = (unsigned char*)malloc(sizeof(unsigned char) * inlen);
+    EVP_CipherUpdate(cipherctx, *data_out, outlen, data_in, inlen);
+}
+
+static
+void pgp_finish(EVP_CIPHER_CTX* cipherctx)
+{ 
+//    EVP_CipherFinal_ex(cipherctx, dec_data, &dec_length);
+    EVP_CIPHER_CTX_cleanup(cipherctx);
+    EVP_CIPHER_CTX_free(cipherctx);
+}
+
+
 /*
  * Read secret key packet data from file @fp
  * Decrypt if necessary using @keya
@@ -329,10 +363,15 @@ int pgp_read_seckey_data(FILE* fp, pgp_seckey_packet* seckey_packet, unsigned ch
         pgp_read_mpi(fp, &(seckey_packet->seckey_data->rsa_p));
         pgp_read_mpi(fp, &(seckey_packet->seckey_data->rsa_q));
         pgp_read_mpi(fp, &(seckey_packet->seckey_data->rsa_u));
-    } else {
-        if (seckey_packet->s2k_usage == 0xfe)
+    } else if ( seckey_packet->s2k_usage == 0xfe ||
+                seckey_packet->s2k_usage == 0xfe) {
+        if (seckey_packet->s2k_usage == 0xfe) {
             
-        if (seckey_packet->s2k_usage == 0xff)
+        }
+            
+        if (seckey_packet->s2k_usage == 0xff) {
+            
+        }
             
     } else { // TODO: No S2K
     }
