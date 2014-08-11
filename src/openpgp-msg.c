@@ -325,14 +325,22 @@ static
 EVP_CIPHER_CTX* pgp_cipher_init(unsigned int cipher_id, 
                     unsigned char* key, unsigned char* iv, int enc_dec)
 {
+    ERR_load_crypto_strings();
+    char error[400];
+
+    int r;
     EVP_CIPHER_CTX *cipherctx;
     const EVP_CIPHER *cipher;
 
     OpenSSL_add_all_ciphers();
     cipher = EVP_get_cipherbyname( get_cipher_name(cipher_id) );
     cipherctx = EVP_CIPHER_CTX_new();
-    EVP_CipherInit_ex(cipherctx, cipher, NULL, key, iv, enc_dec);
-
+    r = EVP_CipherInit_ex(cipherctx, cipher, NULL, key, iv, enc_dec);
+    if(!r) {
+        ERR_error_string(ERR_get_error(), error);
+        printf("EVP_CipherInit_ex failed %s\n",error);
+        return NULL;
+    }
     return cipherctx;
 }
 
@@ -402,7 +410,6 @@ int pgp_read_mpi_decrypt(EVP_CIPHER_CTX* cipherctx, FILE* fp, pgp_mpi** mpi)
 static
 int pgp_read_seckey_data(FILE* fp, pgp_seckey_packet* seckey_packet, unsigned char* key)
 {
-// TODO: Decrypt as a stream
     seckey_packet->seckey_data = (pgp_seckey_data*)calloc(1, sizeof(pgp_seckey_data));
 
     if(seckey_packet->s2k_usage == 0x00) { // Plain
@@ -424,7 +431,6 @@ int pgp_read_seckey_data(FILE* fp, pgp_seckey_packet* seckey_packet, unsigned ch
         if (seckey_packet->s2k_usage == 0xff) {
             file_read_bytes_decrypt_alloc(cipherctx, fp, 2, &(seckey_packet->seckey_data->hash));
         }
-        printf("CHECKPOINT\n");
         pgp_read_mpi_decrypt(cipherctx, fp, &(seckey_packet->seckey_data->rsa_d));
         pgp_read_mpi_decrypt(cipherctx, fp, &(seckey_packet->seckey_data->rsa_p));
         pgp_read_mpi_decrypt(cipherctx, fp, &(seckey_packet->seckey_data->rsa_q));
@@ -433,15 +439,6 @@ int pgp_read_seckey_data(FILE* fp, pgp_seckey_packet* seckey_packet, unsigned ch
         pgp_cipher_finish(cipherctx);
     } else { // TODO: No S2K
     }
-
-/*
-    if (seckey_packet->s2k_usage == 0xfe || seckey_packet->s2k_usage == 0x00)
-        file_read_bytes_alloc(fp, 20, &(seckey_packet->seckey_data->hash));
-    else 
-        file_read_bytes_alloc(fp, 2, &(seckey_packet->seckey_data->hash));
-
-*/
-
 }
 
 
