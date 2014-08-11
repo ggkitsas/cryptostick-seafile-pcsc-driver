@@ -1,5 +1,104 @@
+#include <openssl/evp.h>
+#include <openssl/err.h>
+
 #include "openpgp-msg.h"
 
+static
+const char* ask_passphrase()
+{
+    int size = 8;
+    if (size <= 0) size = 1;
+    unsigned char *str;
+    int ch;
+    size_t len = 0;
+    str = (unsigned char*)realloc(NULL, sizeof(char)*size); //size is start size
+    if (!str) return (const char*)str;
+    while ((ch = getchar()) && ch != '\n') {
+        str[len++] = ch;
+        if(len == size){
+            str = (unsigned char*)realloc(str, sizeof(char)*(size*=2));
+            if (!str) return (const char*)str;          
+        }
+    }
+    str[len++]='\0';
+
+    return (const char*)realloc(str, sizeof(char)*len);
+}
+
+static
+void pgp_hash(const char* passphrase, pgp_s2k* s2k, unsigned char** hash)
+{
+    int i;
+
+    EVP_MD_CTX *mdctx;
+    const EVP_MD *md;
+    unsigned char md_value[EVP_MAX_MD_SIZE];
+    unsigned md_len;
+
+    OpenSSL_add_all_digests();
+    md = EVP_get_digestbyname( get_hash_name(s2k->hash_algo) );
+    if(!md) {
+    }
+    mdctx = EVP_MD_CTX_create();
+    EVP_DigestInit_ex(mdctx, md, NULL);
+
+
+    // Caclulate hash
+    if (s2k->type == S2K_TYPE_SIMPLE) {
+        // Hash only the passphrase
+        EVP_DigestUpdate(mdctx, passphrase, strlen(passphrase));
+    } else if (s2k->type == S2K_TYPE_SALTED) {
+        // First the salt, then the passphrase
+        EVP_DigestUpdate(mdctx, s2k->salt, strlen((const char*)s2k->salt));
+        EVP_DigestUpdate(mdctx, passphrase, strlen(passphrase));
+    } else if (s2k->type == S2K_TYPE_ITERATED_SALTED) {
+        // Hash 'count' octets of 
+        // [ (salt || passphrase) || (salt || passphrase) || ... ]
+        for( i=0; i<s2k->count; i+= get_hash_size(s2k->hash_algo) ) {
+            EVP_DigestUpdate(mdctx, s2k->salt, strlen( (const char*)s2k->salt));
+            EVP_DigestUpdate(mdctx, passphrase, strlen(passphrase));
+        }
+    } else {
+        printf("Unsupported S2K type\n");
+        return;
+    }
+
+    EVP_DigestFinal_ex(mdctx, md_value, &md_len);
+    EVP_MD_CTX_destroy(mdctx);
+
+    *hash = (unsigned char*) malloc(sizeof(unsigned char) * md_len);
+    memcpy(*hash, md_value, md_len);
+
+}
+
+static
+void pgp_derive_key(const char* passphrase, pgp_seckey_packet* pkt, unsigned char** key)
+{
+    int i;
+
+    int key_size = get_key_size(pkt->enc_algo[0]);
+    *key = (unsigned char*) calloc(key_size, sizeof(unsigned char) );
+    
+    int hash_size = get_hash_size(pkt->s2k->hash_algo);
+    unsigned char* hash;
+
+    if (hash_size >= key_size) {
+        // Hash once and truncate if necessary
+        pgp_hash(passphrase, pkt->s2k, &hash);
+        memcpy(key, hash, key_size);
+    } else {
+        // Hash until we have enough octets for the symmetric key
+        // truncate at the end if needed
+
+        int num_octets_cpy;
+        for(i=0; i<key_size ; i+=hash_size) {
+            pgp_hash(passphrase, pkt->s2k, &hash);
+            num_octets_cpy = key_size > i+hash_size ? hash_size: key_size-i;
+            memcpy(&(key[i]), hash, hash_size);
+            free(hash);
+        }
+    }
+}
 
 static
 unsigned int bits2bytes(unsigned int bits)
@@ -99,12 +198,17 @@ void pgp_print_pubkey_packet(pgp_pubkey_packet* pgp_packet)
 
 
 static
-void print_seckey_data(pgp_seckey_data* data)
+void print_seckey_data(pgp_seckey_packet* pkt)
 {
-    print_mpi("RSA d", data->rsa_d);
-    print_mpi("RSA p", data->rsa_p);
-    print_mpi("RSA q", data->rsa_q);
-    print_mpi("RSA u", data->rsa_u);
+    if (pkt->s2k_usage == 0xfe || pkt->s2k_usage == 0x00)
+        print_bytearr("Hash",pkt->seckey_data->hash, 20);
+    else 
+        print_bytearr("Checksum", pkt->seckey_data->hash, 2);
+        
+    print_mpi("RSA d", pkt->seckey_data->rsa_d);
+    print_mpi("RSA p", pkt->seckey_data->rsa_p);
+    print_mpi("RSA q", pkt->seckey_data->rsa_q);
+    print_mpi("RSA u", pkt->seckey_data->rsa_u);
 }
 
 void pgp_print_seckey_packet(pgp_seckey_packet* pkt)
@@ -122,7 +226,7 @@ void pgp_print_seckey_packet(pgp_seckey_packet* pkt)
     if(pkt->iv)
         print_bytearr("IV", pkt->iv, get_block_size(pkt->enc_algo[0]) );
 
-    print_seckey_data(pkt->seckey_data);
+    print_seckey_data(pkt);
 }
 
 
@@ -200,15 +304,28 @@ int pgp_read_pubkey_packet(FILE* fp, pgp_pubkey_packet** pubkey_packet)
     return 0;
 }
 
-
+/*
+ * Read secret key packet data from file @fp
+ * Decrypt if necessary using @keya
+ * Returns updated @seckey_packet
+ */
 static
-int pgp_read_seckey_data(FILE* fp, pgp_seckey_packet* seckey_packet)
+int pgp_read_seckey_data(FILE* fp, pgp_seckey_packet* seckey_packet, unsigned char* key)
 {
+// TODO: Decrypt as a stream
     seckey_packet->seckey_data = (pgp_seckey_data*)calloc(1, sizeof(pgp_seckey_data));
 
-    if (seckey_packet->s2k_usage == 0xfe || seckey_packet->s2k_usage == 0x00)
+    if(seckey_packet->s2k_usage == 0x00) { // Plain
         file_read_bytes_alloc(fp, 20 /*get_hash_size(seckey_packet->s2k->hash_algo)*/,
                             &(seckey_packet->seckey_data->hash));
+    } else if (seckey_packet->s2k_usage == 0xfe) {
+        
+    } else { // No S2K
+    }
+
+/*
+    if (seckey_packet->s2k_usage == 0xfe || seckey_packet->s2k_usage == 0x00)
+        file_read_bytes_alloc(fp, 20, &(seckey_packet->seckey_data->hash));
     else 
         file_read_bytes_alloc(fp, 2, &(seckey_packet->seckey_data->hash));
 
@@ -216,6 +333,8 @@ int pgp_read_seckey_data(FILE* fp, pgp_seckey_packet* seckey_packet)
     pgp_read_mpi(fp, &(seckey_packet->seckey_data->rsa_p));
     pgp_read_mpi(fp, &(seckey_packet->seckey_data->rsa_q));
     pgp_read_mpi(fp, &(seckey_packet->seckey_data->rsa_u));
+*/
+
 }
 
 
@@ -239,7 +358,13 @@ int pgp_read_seckey_packet(FILE* fp, pgp_seckey_packet** seckey_packet)
     else
         seckey_pkt->iv = NULL;
 
-    pgp_read_seckey_data(fp, seckey_pkt);
+// TODO: derive only when encryption is on
+    // Derive key
+    const char* passphrase = NULL;
+    unsigned char* key;
+    passphrase = ask_passphrase();
+    pgp_derive_key(passphrase, seckey_pkt, &key);
+    pgp_read_seckey_data(fp, seckey_pkt, key);
 
     *seckey_packet = seckey_pkt;
 }
