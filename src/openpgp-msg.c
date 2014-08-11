@@ -1,4 +1,5 @@
 #include <openssl/evp.h>
+#include <openssl/sha.h>
 #include <openssl/err.h>
 
 #include "openpgp-msg.h"
@@ -232,6 +233,16 @@ const char* ask_passphrase()
 }
 
 static
+void checksum_update(unsigned int chksum, unsigned char* data, unsigned int length)
+{
+    int i;
+    for(i=0; i<length; i++) {
+        chksum += data[i];
+    }
+    chksum = chksum % 0x10000;
+}
+
+static
 void pgp_hash(const char* passphrase, unsigned char* seed, pgp_s2k* s2k, unsigned char** hash)
 {
     int i;
@@ -413,31 +424,77 @@ int pgp_read_seckey_data(FILE* fp, pgp_seckey_packet* seckey_packet, unsigned ch
     seckey_packet->seckey_data = (pgp_seckey_data*)calloc(1, sizeof(pgp_seckey_data));
 
     if(seckey_packet->s2k_usage == 0x00) { // Plain
-        file_read_bytes_alloc(fp, 2, &(seckey_packet->seckey_data->hash)); // 2 octet checksum
         pgp_read_mpi(fp, &(seckey_packet->seckey_data->rsa_d));
         pgp_read_mpi(fp, &(seckey_packet->seckey_data->rsa_p));
         pgp_read_mpi(fp, &(seckey_packet->seckey_data->rsa_q));
         pgp_read_mpi(fp, &(seckey_packet->seckey_data->rsa_u));
-    } else if ( seckey_packet->s2k_usage == 0xfe ||
-                seckey_packet->s2k_usage == 0xfe) {
+
+        file_read_bytes_alloc(fp, 2, &(seckey_packet->seckey_data->hash)); // 2 octet checksum
+    } else {
 
         EVP_CIPHER_CTX* cipherctx = pgp_cipher_init(seckey_packet->enc_algo[0],
                                 key, seckey_packet->iv, 0);
 
-        if (seckey_packet->s2k_usage == 0xfe) {
-            file_read_bytes_decrypt_alloc(cipherctx, fp, 20, &(seckey_packet->seckey_data->hash));
-        }
-            
-        if (seckey_packet->s2k_usage == 0xff) {
-            file_read_bytes_decrypt_alloc(cipherctx, fp, 2, &(seckey_packet->seckey_data->hash));
-        }
         pgp_read_mpi_decrypt(cipherctx, fp, &(seckey_packet->seckey_data->rsa_d));
         pgp_read_mpi_decrypt(cipherctx, fp, &(seckey_packet->seckey_data->rsa_p));
         pgp_read_mpi_decrypt(cipherctx, fp, &(seckey_packet->seckey_data->rsa_q));
         pgp_read_mpi_decrypt(cipherctx, fp, &(seckey_packet->seckey_data->rsa_u));
 
+        if (seckey_packet->s2k_usage == 0xfe) { // sha1 digest
+            file_read_bytes_decrypt_alloc(cipherctx, fp, 20, &(seckey_packet->seckey_data->hash));
+        } else { // 2 octet checksum
+            file_read_bytes_decrypt_alloc(cipherctx, fp, 2, &(seckey_packet->seckey_data->hash));
+        }
+
         pgp_cipher_finish(cipherctx);
-    } else { // TODO: No S2K
+    }
+
+    // Verify checksum/sha1-hash
+    if (seckey_packet->s2k_usage == 0x00 || 
+        seckey_packet->s2k_usage == 0xff) {
+        // 2 octet checksum
+        unsigned int chksum = 0;
+        checksum_update(chksum, seckey_packet->seckey_data->rsa_d->length, 2);
+        checksum_update(chksum, seckey_packet->seckey_data->rsa_d->value, 
+                    bits2bytes( bytearr2uint(seckey_packet->seckey_data->rsa_d->length, 2)));
+        checksum_update(chksum, seckey_packet->seckey_data->rsa_p->length, 2);
+        checksum_update(chksum, seckey_packet->seckey_data->rsa_p->value, 
+                    bits2bytes( bytearr2uint(seckey_packet->seckey_data->rsa_p->length, 2)));
+        checksum_update(chksum, seckey_packet->seckey_data->rsa_q->length, 2);
+        checksum_update(chksum, seckey_packet->seckey_data->rsa_q->value, 
+                    bits2bytes( bytearr2uint(seckey_packet->seckey_data->rsa_q->length, 2)));
+        checksum_update(chksum, seckey_packet->seckey_data->rsa_u->length, 2);
+        checksum_update(chksum, seckey_packet->seckey_data->rsa_u->value, 
+                    bits2bytes( bytearr2uint(seckey_packet->seckey_data->rsa_u->length, 2)));
+
+    } else if (seckey_packet->s2k_usage == 0xfe) {
+        // 20 octet sha1 digest
+        int r;
+        ERR_load_crypto_strings();
+        char error[400];
+
+        unsigned char md[20];
+        SHA_CTX* shactx;
+        r = SHA1_Init(shactx);
+        if(!r) {
+            ERR_error_string(ERR_get_error(), error);
+            printf("SHA1_Init failed %s\n",error);
+        }
+
+        SHA1_Update(shactx, seckey_packet->seckey_data->rsa_d->length, 2);
+        SHA1_Update(shactx, seckey_packet->seckey_data->rsa_d->value, 
+                bits2bytes( bytearr2uint(seckey_packet->seckey_data->rsa_d->length, 2)));
+        SHA1_Update(shactx, seckey_packet->seckey_data->rsa_d->length, 2);
+        SHA1_Update(shactx, seckey_packet->seckey_data->rsa_d->value, 
+                bits2bytes( bytearr2uint(seckey_packet->seckey_data->rsa_d->length, 2)));
+        SHA1_Update(shactx, seckey_packet->seckey_data->rsa_q->length, 2);
+        SHA1_Update(shactx, seckey_packet->seckey_data->rsa_q->value, 
+                bits2bytes( bytearr2uint(seckey_packet->seckey_data->rsa_q->length, 2)));
+        SHA1_Update(shactx, seckey_packet->seckey_data->rsa_u->length, 2);
+        SHA1_Update(shactx, seckey_packet->seckey_data->rsa_u->value, 
+                bits2bytes( bytearr2uint(seckey_packet->seckey_data->rsa_u->length, 2)));
+        SHA1_Final(md, shactx);
+print_bytearr("Verify sha1 digest",md, 20);
     }
 }
 
@@ -467,7 +524,12 @@ int pgp_read_seckey_packet(FILE* fp, pgp_seckey_packet** seckey_packet)
     unsigned char* key = NULL;
     if (seckey_pkt->s2k_usage != 0x00) {
         passphrase = ask_passphrase();
-        pgp_derive_key(passphrase, seckey_pkt, &key);
+        if ( seckey_pkt->s2k_usage == 0xff || 
+             seckey_pkt->s2k_usage == 0xfe ) {
+            pgp_derive_key(passphrase, seckey_pkt, &key);
+        } else { // When no S2K exists, use MD5 to derive the key
+            // TODO
+        }
     }
 
     pgp_read_seckey_data(fp, seckey_pkt, key);
