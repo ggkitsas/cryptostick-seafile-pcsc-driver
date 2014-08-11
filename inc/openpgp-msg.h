@@ -84,7 +84,7 @@
 inline
 unsigned int get_hash_size(unsigned char hash_algo)
 {
-    switch(hash_algo){
+    switch(hash_algo) {
         case HASH_MD5:
             return HASH_MD5_HASH_SIZE;
         case HASH_SHA1:
@@ -101,6 +101,30 @@ unsigned int get_hash_size(unsigned char hash_algo)
         default:
             printf("Error: Unsupported hash algorithm\n");
             return 0; 
+    }
+}
+
+inline
+const char* get_hash_name(unsigned char hash_algo)
+{
+     switch(hash_algo) {
+        case HASH_MD5:
+            return "md5";
+        case HASH_SHA1:
+            return "sha1";
+        case HASH_RIPEMD160:
+            return "ripemd160";
+        case HASH_SHA256:
+            return "sha256";
+        case HASH_SHA384:
+            return "sha384";
+        case HASH_SHA512:
+            return "sha512";
+        case HASH_SHA224:
+            return "sha224";
+        default:
+            printf("Error: Unsupported hash algorithm\n");
+            return NULL;
     }
 }
 
@@ -131,6 +155,15 @@ unsigned int get_hash_size(unsigned char hash_algo)
 #define SYM_AES256_BLOCK_SIZE      16
 #define SYM_TWOFISH256_BLOCK_SIZE  16
 
+#define SYM_IDEA_KEY_SIZE        16
+#define SYM_TRIPLEDES_KEY_SIZE   21 // Out of 24
+#define SYM_CAST5_KEY_SIZE       16
+#define SYM_BLOWFISH_KEY_SIZE    16
+#define SYM_AES128_KEY_SIZE      16
+#define SYM_AES192_KEY_SIZE      24
+#define SYM_AES256_KEY_SIZE      32
+#define SYM_TWOFISH256_KEY_SIZE  32
+
 inline
 unsigned int get_block_size(unsigned char sym_algo)
 {
@@ -150,6 +183,28 @@ unsigned int get_block_size(unsigned char sym_algo)
             return 0;
     }
 }
+
+inline
+unsigned int get_key_size(unsigned char sym_algo)
+{
+    switch(sym_algo){
+        case SYM_IDEA:
+        case SYM_CAST5:
+        case SYM_BLOWFISH:
+        case SYM_AES128:
+            return SYM_IDEA_KEY_SIZE;
+        case SYM_TRIPLEDES:
+            return SYM_TRIPLEDES_KEY_SIZE;
+        case SYM_AES192_KEY_SIZE:
+            return SYM_AES192;
+        case SYM_AES256:
+        case SYM_TWOFISH256:
+            return SYM_AES256_KEY_SIZE;
+        default:
+            printf("Error: Unsupported symmetric encryption algorithm\n");
+            return 0;
+    }
+}
 /*--------------------------------------------------*/
 
 /*----------- Errors ---------*/
@@ -159,7 +214,7 @@ unsigned int get_block_size(unsigned char sym_algo)
 /*------------------ ---------*/
 
 
-/*---------- Data Element Format ------------*/
+/*---------- Data Elements ------------*/
 typedef struct _pgp_mpi {
     unsigned char length[2]; // In bits
     unsigned char* value;
@@ -171,7 +226,7 @@ typedef struct _pgp_s2k {
     unsigned char salt[8];
     unsigned char count;
 }pgp_s2k;
-/*-------------------------------------------*/
+/*-------------------------------------*/
 
 
 typedef struct _pgp_message {
@@ -201,7 +256,7 @@ typedef struct _pgp_pubkey_packet {
 }pgp_pubkey_packet;
 
 typedef struct _pgp_seckey_data {
-    unsigned char* hash; // hash or checksum, depending of s2k_usage
+    unsigned char* hash; // SHA1-hash or checksum, depending of s2k_usage
 
     pgp_mpi* rsa_d;
     pgp_mpi* rsa_p;
