@@ -366,14 +366,15 @@ int pgp_read_seckey_packet(FILE* fp, pgp_seckey_packet** seckey_packet)
     else
         seckey_pkt->iv = NULL;
 
-// TODO: derive only when encryption is on
     // Derive key
     const char* passphrase = NULL;
-    unsigned char* key;
-    passphrase = ask_passphrase();
-    pgp_derive_key(passphrase, seckey_pkt, &key);
-    pgp_read_seckey_data(fp, seckey_pkt, key);
+    unsigned char* key = NULL;
+    if (seckey_pkt->s2k_usage != 0x00) {
+        passphrase = ask_passphrase();
+        pgp_derive_key(passphrase, seckey_pkt, &key);
+    }
 
+    pgp_read_seckey_data(fp, seckey_pkt, key);
     *seckey_packet = seckey_pkt;
 }
 
