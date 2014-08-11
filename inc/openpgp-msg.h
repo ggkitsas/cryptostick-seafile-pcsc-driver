@@ -209,7 +209,7 @@ unsigned int get_key_size(unsigned char sym_algo)
 inline
 const char* get_cipher_name(unsigned char cipher_algo)
 {
-    switch(hash_algo) {
+    switch(cipher_algo) {
         case SYM_IDEA:
             return "idea-cfb";
         case SYM_CAST5:
