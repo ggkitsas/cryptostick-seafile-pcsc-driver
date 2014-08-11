@@ -3,110 +3,6 @@
 
 #include "openpgp-msg.h"
 
-static
-const char* ask_passphrase()
-{
-    int size = 8;
-    if (size <= 0) size = 1;
-    unsigned char *str;
-    int ch;
-    size_t len = 0;
-    str = (unsigned char*)realloc(NULL, sizeof(char)*size); //size is start size
-    if (!str) return (const char*)str;
-    while ((ch = getchar()) && ch != '\n') {
-        str[len++] = ch;
-        if(len == size){
-            str = (unsigned char*)realloc(str, sizeof(char)*(size*=2));
-            if (!str) return (const char*)str;          
-        }
-    }
-    str[len++]='\0';
-
-    return (const char*)realloc(str, sizeof(char)*len);
-}
-
-static
-void pgp_hash(const char* passphrase, unsigned char* seed, pgp_s2k* s2k, unsigned char** hash)
-{
-    int i;
-
-    EVP_MD_CTX *mdctx;
-    const EVP_MD *md;
-    unsigned char md_value[EVP_MAX_MD_SIZE];
-    unsigned md_len;
-
-    OpenSSL_add_all_digests();
-    md = EVP_get_digestbyname( get_hash_name(s2k->hash_algo) );
-    if(!md) {
-    }
-    mdctx = EVP_MD_CTX_create();
-    EVP_DigestInit_ex(mdctx, md, NULL);
-
-    // Preloading context with seed
-    if(seed)
-        EVP_DigestUpdate(mdctx, seed, strlen(passphrase));
-
-    // Caclulate hash
-    if (s2k->type == S2K_TYPE_SIMPLE) {
-        // Hash only the passphrase
-        EVP_DigestUpdate(mdctx, passphrase, strlen(passphrase));
-    } else if (s2k->type == S2K_TYPE_SALTED) {
-        // First the salt, then the passphrase
-        EVP_DigestUpdate(mdctx, s2k->salt, strlen((const char*)s2k->salt));
-        EVP_DigestUpdate(mdctx, passphrase, strlen(passphrase));
-    } else if (s2k->type == S2K_TYPE_ITERATED_SALTED) {
-        // Hash 'count' octets of 
-        // [ (salt || passphrase) || (salt || passphrase) || ... ]
-        for( i=0; i<s2k->count; i+= get_hash_size(s2k->hash_algo) ) {
-            EVP_DigestUpdate(mdctx, s2k->salt, strlen( (const char*)s2k->salt));
-            EVP_DigestUpdate(mdctx, passphrase, strlen(passphrase));
-        }
-    } else {
-        printf("Unsupported S2K type\n");
-        return;
-    }
-
-    EVP_DigestFinal_ex(mdctx, md_value, &md_len);
-    EVP_MD_CTX_destroy(mdctx);
-
-    *hash = (unsigned char*) malloc(sizeof(unsigned char) * md_len);
-    memcpy(*hash, md_value, md_len);
-
-}
-
-static
-void pgp_derive_key(const char* passphrase, pgp_seckey_packet* pkt, unsigned char** key)
-{
-    int i;
-
-    int key_size = get_key_size(pkt->enc_algo[0]);
-    *key = (unsigned char*) calloc(key_size, sizeof(unsigned char) );
-    
-    int hash_size = get_hash_size(pkt->s2k->hash_algo);
-    unsigned char* hash;
-
-    if (hash_size >= key_size) {
-        // Hash once and truncate if necessary
-        pgp_hash(passphrase, NULL,  pkt->s2k, &hash);
-        memcpy(key, hash, key_size);
-    } else {
-        // Hash until we have enough octets for the symmetric key
-        // truncate at the end if needed
-
-        int num_octets_cpy;
-        unsigned char* seed = (unsigned char*)"";
-        for(i=0; i<key_size ; i+=hash_size) {
-            pgp_hash(passphrase, seed, pkt->s2k, &hash);
-            num_octets_cpy = key_size > i+hash_size ? hash_size: key_size-i;
-            memcpy(&(key[i]), hash, hash_size);
-            free(seed);
-            seed = (unsigned char*) calloc((i/hash_size)+1, sizeof(unsigned char) );
-            free(hash);
-        }
-        free(seed);
-    }
-}
-
 
 static
 unsigned int bits2bytes(unsigned int bits)
@@ -312,7 +208,119 @@ int pgp_read_pubkey_packet(FILE* fp, pgp_pubkey_packet** pubkey_packet)
     return 0;
 }
 
+static
+const char* ask_passphrase()
+{
+    printf("Insert passphrase for the secret key:\n");
+    int size = 8;
+    if (size <= 0) size = 1;
+    unsigned char *str;
+    int ch;
+    size_t len = 0;
+    str = (unsigned char*)realloc(NULL, sizeof(char)*size); //size is start size
+    if (!str) return (const char*)str;
+    while ((ch = getchar()) && ch != '\n') {
+        str[len++] = ch;
+        if(len == size){
+            str = (unsigned char*)realloc(str, sizeof(char)*(size*=2));
+            if (!str) return (const char*)str;          
+        }
+    }
+    str[len++]='\0';
 
+    return (const char*)realloc(str, sizeof(char)*len);
+}
+
+static
+void pgp_hash(const char* passphrase, unsigned char* seed, pgp_s2k* s2k, unsigned char** hash)
+{
+    int i;
+
+    EVP_MD_CTX *mdctx;
+    const EVP_MD *md;
+    unsigned char md_value[EVP_MAX_MD_SIZE];
+    unsigned md_len;
+
+    OpenSSL_add_all_digests();
+    md = EVP_get_digestbyname( get_hash_name(s2k->hash_algo) );
+    if(!md) {
+    }
+    mdctx = EVP_MD_CTX_create();
+    EVP_DigestInit_ex(mdctx, md, NULL);
+
+    // Preloading context with seed
+    if(seed)
+        EVP_DigestUpdate(mdctx, seed, strlen(passphrase));
+
+    // Caclulate hash
+    if (s2k->type == S2K_TYPE_SIMPLE) {
+        // Hash only the passphrase
+        EVP_DigestUpdate(mdctx, passphrase, strlen(passphrase));
+    } else if (s2k->type == S2K_TYPE_SALTED) {
+        // First the salt, then the passphrase
+        EVP_DigestUpdate(mdctx, s2k->salt, strlen((const char*)s2k->salt));
+        EVP_DigestUpdate(mdctx, passphrase, strlen(passphrase));
+    } else if (s2k->type == S2K_TYPE_ITERATED_SALTED) {
+        // Hash 'count' octets of 
+        // [ (salt || passphrase) || (salt || passphrase) || ... ]
+        for( i=0; i<s2k->count; i+= get_hash_size(s2k->hash_algo) ) {
+            EVP_DigestUpdate(mdctx, s2k->salt, strlen( (const char*)s2k->salt));
+            EVP_DigestUpdate(mdctx, passphrase, strlen(passphrase));
+        }
+    } else {
+        printf("Unsupported S2K type\n");
+        return;
+    }
+
+    EVP_DigestFinal_ex(mdctx, md_value, &md_len);
+    EVP_MD_CTX_destroy(mdctx);
+
+    *hash = (unsigned char*) malloc(sizeof(unsigned char) * md_len);
+    memcpy(*hash, md_value, md_len);
+}
+
+static
+int pgp_derive_key(const char* passphrase, pgp_seckey_packet* pkt, unsigned char** key)
+{
+    int i;
+
+    int key_size = get_key_size(pkt->enc_algo[0]);
+    *key = (unsigned char*) calloc(key_size, sizeof(unsigned char) );
+    
+    int hash_size = get_hash_size(pkt->s2k->hash_algo);
+    unsigned char* hash;
+
+    if (hash_size >= key_size) {
+        // Hash once and truncate if necessary
+        pgp_hash(passphrase, NULL,  pkt->s2k, &hash);
+        memcpy(*key, hash, key_size);
+    } else {
+        // Hash until we have enough octets for the symmetric key
+        // truncate at the end if needed
+
+        int num_octets_cpy;
+        unsigned char* seed = (unsigned char*)"";
+        for(i=0; i<key_size ; i+=hash_size) {
+            pgp_hash(passphrase, seed, pkt->s2k, &hash);
+            num_octets_cpy = key_size > i+hash_size ? hash_size: key_size-i;
+            memcpy(&(key[i]), hash, hash_size);
+            free(seed);
+            seed = (unsigned char*) calloc((i/hash_size)+1, sizeof(unsigned char) );
+            free(hash);
+        }
+        free(seed);
+    }
+
+    return key_size;
+}
+
+
+/*
+ * Initializes enc/deciphering routine
+ * cipher_id: Symmetric encryption algorithm ID, according to openpgp-msg.h
+ * enc_dec: 1->encryption, 0->decryption
+ * Returns a cipher context
+ */
 static
 EVP_CIPHER_CTX* pgp_cipher_init(unsigned int cipher_id, 
                     unsigned char* key, unsigned char* iv, int enc_dec)
@@ -337,14 +345,54 @@ void pgp_cipher_update( EVP_CIPHER_CTX* cipherctx,
     EVP_CipherUpdate(cipherctx, *data_out, outlen, data_in, inlen);
 }
 
+
 static
-void pgp_finish(EVP_CIPHER_CTX* cipherctx)
+int file_read_bytes_decrypt( EVP_CIPHER_CTX* cipherctx,
+                            FILE* fp, int length, unsigned char* out)
+{
+    int r;
+
+    unsigned char* enc_data;
+    int outlen;
+    file_read_bytes_alloc(fp, length, &enc_data);
+    r = EVP_CipherUpdate(cipherctx, out, &outlen, enc_data, length);
+    return 1-r; // we want to return 0->success, 1->failure 
+                // (complemetary of EVP_CipherUpdate)
+}
+
+static
+int file_read_bytes_decrypt_alloc( EVP_CIPHER_CTX* cipherctx,
+                            FILE* fp, int length, unsigned char** out)
+{
+    int r;
+    *out = (unsigned char*) malloc (length * sizeof(unsigned char));
+    r =file_read_bytes_decrypt(cipherctx, fp, length, *out);
+    return r;
+}
+
+static
+void pgp_cipher_finish(EVP_CIPHER_CTX* cipherctx)
 { 
 //    EVP_CipherFinal_ex(cipherctx, dec_data, &dec_length);
     EVP_CIPHER_CTX_cleanup(cipherctx);
     EVP_CIPHER_CTX_free(cipherctx);
 }
 
+int pgp_read_mpi_decrypt(EVP_CIPHER_CTX* cipherctx, FILE* fp, pgp_mpi** mpi)
+{
+    int r;
+    pgp_mpi* tmp_mpi = (pgp_mpi*)calloc(1, sizeof(pgp_mpi));
+    r = file_read_bytes_decrypt(cipherctx, fp, 2, tmp_mpi->length);
+    if(r != 0)
+        return r;
+
+    unsigned int value_len = bits2bytes( bytearr2uint(tmp_mpi->length, 2)); //bytes
+    r = file_read_bytes_decrypt_alloc(cipherctx, fp, value_len, &(tmp_mpi->value));
+    if(r != 0)
+        return r;
+    *mpi = tmp_mpi;
+    return 0;
+}
 
 /*
  * Read secret key packet data from file @fp
@@ -358,21 +406,31 @@ int pgp_read_seckey_data(FILE* fp, pgp_seckey_packet* seckey_packet, unsigned ch
     seckey_packet->seckey_data = (pgp_seckey_data*)calloc(1, sizeof(pgp_seckey_data));
 
     if(seckey_packet->s2k_usage == 0x00) { // Plain
-        file_read_bytes_alloc(fp, 20, &(seckey_packet->seckey_data->hash));
+        file_read_bytes_alloc(fp, 2, &(seckey_packet->seckey_data->hash)); // 2 octet checksum
         pgp_read_mpi(fp, &(seckey_packet->seckey_data->rsa_d));
         pgp_read_mpi(fp, &(seckey_packet->seckey_data->rsa_p));
         pgp_read_mpi(fp, &(seckey_packet->seckey_data->rsa_q));
         pgp_read_mpi(fp, &(seckey_packet->seckey_data->rsa_u));
     } else if ( seckey_packet->s2k_usage == 0xfe ||
                 seckey_packet->s2k_usage == 0xfe) {
+
+        EVP_CIPHER_CTX* cipherctx = pgp_cipher_init(seckey_packet->enc_algo[0],
+                                key, seckey_packet->iv, 0);
+
         if (seckey_packet->s2k_usage == 0xfe) {
-            
+            file_read_bytes_decrypt_alloc(cipherctx, fp, 20, &(seckey_packet->seckey_data->hash));
         }
             
         if (seckey_packet->s2k_usage == 0xff) {
-            
+            file_read_bytes_decrypt_alloc(cipherctx, fp, 2, &(seckey_packet->seckey_data->hash));
         }
-            
+        printf("CHECKPOINT\n");
+        pgp_read_mpi_decrypt(cipherctx, fp, &(seckey_packet->seckey_data->rsa_d));
+        pgp_read_mpi_decrypt(cipherctx, fp, &(seckey_packet->seckey_data->rsa_p));
+        pgp_read_mpi_decrypt(cipherctx, fp, &(seckey_packet->seckey_data->rsa_q));
+        pgp_read_mpi_decrypt(cipherctx, fp, &(seckey_packet->seckey_data->rsa_u));
+
+        pgp_cipher_finish(cipherctx);
     } else { // TODO: No S2K
     }
 
