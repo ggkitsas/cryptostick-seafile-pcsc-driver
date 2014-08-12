@@ -272,11 +272,20 @@ void pgp_hash(const char* passphrase, unsigned char* seed, pgp_s2k* s2k, unsigne
         EVP_DigestUpdate(mdctx, s2k->salt, strlen((const char*)s2k->salt));
         EVP_DigestUpdate(mdctx, passphrase, strlen(passphrase));
     } else if (s2k->type == S2K_TYPE_ITERATED_SALTED) {
+        int count =  (16 + (s2k->count & 15) ) << ((s2k->count >> 4) + 6);
         // Hash 'count' octets of 
         // [ (salt || passphrase) || (salt || passphrase) || ... ]
-        for( i=0; i<s2k->count; i+= get_hash_size(s2k->hash_algo) ) {
-            EVP_DigestUpdate(mdctx, s2k->salt, strlen( (const char*)s2k->salt));
-            EVP_DigestUpdate(mdctx, passphrase, strlen(passphrase));
+        unsigned int salt_pass_concat_len = 8 + strlen(passphrase);
+        unsigned char* salt_pass_concat = (unsigned char*) malloc(salt_pass_concat_len);
+        memcpy(salt_pass_concat, s2k->salt, 8);
+        memcpy(&(salt_pass_concat[8]), passphrase, strlen(passphrase));
+
+        for(i=0; i<count; i+=salt_pass_concat_len)
+        {
+            if ( count >= i+salt_pass_concat_len)
+                EVP_DigestUpdate(mdctx, salt_pass_concat, salt_pass_concat_len);
+            else
+                EVP_DigestUpdate(mdctx, salt_pass_concat, count-i);
         }
     } else {
         printf("Unsupported S2K type\n");
@@ -321,7 +330,6 @@ int pgp_derive_key(const char* passphrase, pgp_seckey_packet* pkt, unsigned char
         }
         free(seed);
     }
-
     return key_size;
 }
 
@@ -474,26 +482,26 @@ int pgp_read_seckey_data(FILE* fp, pgp_seckey_packet* seckey_packet, unsigned ch
         char error[400];
 
         unsigned char md[20];
-        SHA_CTX* shactx;
-        r = SHA1_Init(shactx);
+        SHA_CTX shactx;
+        r = SHA1_Init(&shactx);
         if(!r) {
             ERR_error_string(ERR_get_error(), error);
             printf("SHA1_Init failed %s\n",error);
         }
 
-        SHA1_Update(shactx, seckey_packet->seckey_data->rsa_d->length, 2);
-        SHA1_Update(shactx, seckey_packet->seckey_data->rsa_d->value, 
+        SHA1_Update(&shactx, seckey_packet->seckey_data->rsa_d->length, 2);
+        SHA1_Update(&shactx, seckey_packet->seckey_data->rsa_d->value, 
                 bits2bytes( bytearr2uint(seckey_packet->seckey_data->rsa_d->length, 2)));
-        SHA1_Update(shactx, seckey_packet->seckey_data->rsa_d->length, 2);
-        SHA1_Update(shactx, seckey_packet->seckey_data->rsa_d->value, 
-                bits2bytes( bytearr2uint(seckey_packet->seckey_data->rsa_d->length, 2)));
-        SHA1_Update(shactx, seckey_packet->seckey_data->rsa_q->length, 2);
-        SHA1_Update(shactx, seckey_packet->seckey_data->rsa_q->value, 
+        SHA1_Update(&shactx, seckey_packet->seckey_data->rsa_p->length, 2);
+        SHA1_Update(&shactx, seckey_packet->seckey_data->rsa_p->value, 
+                bits2bytes( bytearr2uint(seckey_packet->seckey_data->rsa_p->length, 2)));
+        SHA1_Update(&shactx, seckey_packet->seckey_data->rsa_q->length, 2);
+        SHA1_Update(&shactx, seckey_packet->seckey_data->rsa_q->value, 
                 bits2bytes( bytearr2uint(seckey_packet->seckey_data->rsa_q->length, 2)));
-        SHA1_Update(shactx, seckey_packet->seckey_data->rsa_u->length, 2);
-        SHA1_Update(shactx, seckey_packet->seckey_data->rsa_u->value, 
+        SHA1_Update(&shactx, seckey_packet->seckey_data->rsa_u->length, 2);
+        SHA1_Update(&shactx, seckey_packet->seckey_data->rsa_u->value, 
                 bits2bytes( bytearr2uint(seckey_packet->seckey_data->rsa_u->length, 2)));
-        SHA1_Final(md, shactx);
+        SHA1_Final(md, &shactx);
 print_bytearr("Verify sha1 digest",md, 20);
     }
 }
