@@ -444,10 +444,12 @@ void pgp_cipher_update( EVP_CIPHER_CTX* cipherctx,
 
 static
 void pgp_cipher_finish(EVP_CIPHER_CTX* cipherctx)
-{ 
-//    EVP_CipherFinal_ex(cipherctx, dec_data, &dec_length);
-    EVP_CIPHER_CTX_cleanup(cipherctx);
-    EVP_CIPHER_CTX_free(cipherctx);
+{
+    if(cipherctx) { 
+        // EVP_CipherFinal_ex(cipherctx, dec_data, &dec_length);
+        EVP_CIPHER_CTX_cleanup(cipherctx);
+        EVP_CIPHER_CTX_free(cipherctx);
+    }
 }
 
 static
@@ -504,6 +506,22 @@ int pgp_read_mpi_decrypt(EVP_CIPHER_CTX* cipherctx, FILE* fp, pgp_mpi** mpi)
     return 0;
 }
 
+
+int pgp_write_mpi_encrypt(EVP_CIPHER_CTX* cipherctx, FILE* fp, pgp_mpi* mpi)
+{
+    int r;
+    r = file_write_bytes_encrypt(cipherctx, fp, 2, mpi->length);
+    if(r != 0)
+        return r;
+
+    unsigned int value_len = bits2bytes( bytearr2uint(mpi->length, 2)); //bytes
+    r = file_write_bytes_encrypt(cipherctx, fp, value_len, mpi->value);
+    if(r != 0)
+        return r;
+    return 0;
+}
+
+
 /*
  * Read secret key packet data from file @fp
  * Decrypt if necessary using @keya
@@ -541,6 +559,7 @@ int pgp_read_seckey_data(FILE* fp, pgp_seckey_packet* seckey_packet, unsigned ch
     }
 
     // Verify checksum/sha1-hash
+    // TODO: missing all the other cases (checksum)
     if (seckey_packet->s2k_usage == 0x00 || 
         seckey_packet->s2k_usage == 0xff) {
         // 2 octet checksum
@@ -599,6 +618,90 @@ int pgp_read_seckey_data(FILE* fp, pgp_seckey_packet* seckey_packet, unsigned ch
 }
 
 
+static
+int pgp_write_seckey_data(FILE* fp, pgp_seckey_packet* seckey_packet, unsigned char* key)
+{
+//    seckey_packet->seckey_data = (pgp_seckey_data*)calloc(1, sizeof(pgp_seckey_data));
+    pgp_seckey_data* seckey_data = seckey_packet->seckey_data;
+
+    EVP_CIPHER_CTX* cipherctx = NULL;
+
+    if(seckey_packet->s2k_usage == 0x00) { // Plain
+        pgp_write_mpi(fp, seckey_data->rsa_d);
+        pgp_write_mpi(fp, seckey_data->rsa_p);
+        pgp_write_mpi(fp, seckey_data->rsa_q);
+        pgp_write_mpi(fp, seckey_data->rsa_u);
+
+    } else {
+
+        cipherctx = pgp_cipher_init(seckey_packet->enc_algo[0],
+                                key, seckey_packet->iv, 1);
+
+        pgp_write_mpi_encrypt(cipherctx, fp, seckey_data->rsa_d);
+        pgp_write_mpi_encrypt(cipherctx, fp, seckey_data->rsa_p);
+        pgp_write_mpi_encrypt(cipherctx, fp, seckey_data->rsa_q);
+        pgp_write_mpi_encrypt(cipherctx, fp, seckey_data->rsa_u);
+
+    }
+
+    // Calulate and write checksum/sha1-hash
+    // TODO: missing all the other cases (checksum)
+    if (seckey_packet->s2k_usage == 0x00 || 
+        seckey_packet->s2k_usage == 0xff) {
+        // 2 octet checksum
+        unsigned int chksum = 0;
+        checksum_update(chksum, seckey_data->rsa_d->length, 2);
+        checksum_update(chksum, seckey_data->rsa_d->value, 
+                    bits2bytes( bytearr2uint(seckey_data->rsa_d->length, 2)));
+        checksum_update(chksum, seckey_data->rsa_p->length, 2);
+        checksum_update(chksum, seckey_data->rsa_p->value, 
+                    bits2bytes( bytearr2uint(seckey_data->rsa_p->length, 2)));
+        checksum_update(chksum, seckey_data->rsa_q->length, 2);
+        checksum_update(chksum, seckey_data->rsa_q->value, 
+                    bits2bytes( bytearr2uint(seckey_data->rsa_q->length, 2)));
+        checksum_update(chksum, seckey_data->rsa_u->length, 2);
+        checksum_update(chksum, seckey_data->rsa_u->value, 
+                    bits2bytes( bytearr2uint(seckey_data->rsa_u->length, 2)));
+
+        if (seckey_packet->s2k_usage == 0x00)
+            file_write_bytes(fp, 2, seckey_data->hash);
+        else // s2k_usage == 0xff
+            file_write_bytes_encrypt(cipherctx, fp, 2, seckey_data->hash);
+
+    } else if (seckey_packet->s2k_usage == 0xfe) {
+        // 20 octet sha1 digest
+        int r;
+        ERR_load_crypto_strings();
+        char error[400];
+
+        unsigned char md[20];
+        SHA_CTX shactx;
+        r = SHA1_Init(&shactx);
+        if(!r) {
+            ERR_error_string(ERR_get_error(), error);
+            printf("SHA1_Init failed %s\n",error);
+        }
+
+        SHA1_Update(&shactx, seckey_data->rsa_d->length, 2);
+        SHA1_Update(&shactx, seckey_data->rsa_d->value, 
+                bits2bytes( bytearr2uint(seckey_data->rsa_d->length, 2)));
+        SHA1_Update(&shactx, seckey_data->rsa_p->length, 2);
+        SHA1_Update(&shactx, seckey_data->rsa_p->value, 
+                bits2bytes( bytearr2uint(seckey_data->rsa_p->length, 2)));
+        SHA1_Update(&shactx, seckey_data->rsa_q->length, 2);
+        SHA1_Update(&shactx, seckey_data->rsa_q->value, 
+                bits2bytes( bytearr2uint(seckey_data->rsa_q->length, 2)));
+        SHA1_Update(&shactx, seckey_data->rsa_u->length, 2);
+        SHA1_Update(&shactx, seckey_data->rsa_u->value, 
+                bits2bytes( bytearr2uint(seckey_data->rsa_u->length, 2)));
+        SHA1_Final(md, &shactx);
+
+        file_write_bytes_encrypt(cipherctx, fp, 20, seckey_data->hash);
+    }
+    pgp_cipher_finish(cipherctx);
+}
+
+
 int pgp_read_seckey_packet(FILE* fp, pgp_seckey_packet** seckey_packet)
 {
     pgp_seckey_packet* seckey_pkt = (pgp_seckey_packet*)calloc(1, sizeof(pgp_seckey_packet));
@@ -641,6 +744,47 @@ int pgp_read_seckey_packet(FILE* fp, pgp_seckey_packet** seckey_packet)
     pgp_read_seckey_data(fp, seckey_pkt, key);
     *seckey_packet = seckey_pkt;
 }
+
+int pgp_write_seckey_packet(FILE* fp, pgp_seckey_packet* seckey_pkt)
+{
+    int r;
+
+    pgp_write_pubkey_packet(fp, seckey_pkt->pubkey_packet);
+    r = fputc(seckey_pkt->s2k_usage, fp);
+
+    if ( seckey_pkt->s2k_usage == 0xff || 
+         seckey_pkt->s2k_usage == 0xfe ) {
+        file_write_bytes(fp, 1, seckey_pkt->enc_algo);
+        pgp_write_s2k(fp, seckey_pkt->s2k);
+    } else {
+        fputc(seckey_pkt->s2k_usage, fp);
+    }
+
+    if( seckey_pkt->s2k_usage != 0x00 )
+        file_write_bytes(fp, get_block_size(seckey_pkt->enc_algo[0]), seckey_pkt->iv);
+
+    // Derive key
+    const char* passphrase = NULL;
+    unsigned char* key = NULL;
+    if (seckey_pkt->s2k_usage != 0x00) {
+        passphrase = ask_passphrase();
+        if ( seckey_pkt->s2k_usage == 0xff || 
+             seckey_pkt->s2k_usage == 0xfe ) {
+            pgp_derive_key(passphrase, seckey_pkt, &key);
+        } else { // When no S2K exists, use MD5 to derive the key
+            unsigned char md[HASH_MD5_HASH_SIZE];
+            unsigned int key_size = get_hash_size(seckey_pkt->enc_algo[0]);
+            MD5_CTX md5ctx;
+            MD5_Init(&md5ctx);
+            MD5_Update(&md5ctx, passphrase, strlen(passphrase));
+            MD5_Final(md, &md5ctx);
+            memcpy(key, md, key_size);
+        }
+    }
+
+    pgp_write_seckey_data(fp, seckey_pkt, key);
+}
+
 
 /*
  * Reads a packet from file @fp,
@@ -701,6 +845,60 @@ int pgp_read_packet(FILE* fp, void** pgp_packet, pgp_packet_header** hdr)
     return 0;
 }
 
+
+// TODO:
+int pgp_write_packet(FILE* fp, void* pgp_packet, pgp_packet_header* hdr)
+{
+    int i,r;
+    pgp_packet_header* tmp_hdr = (pgp_packet_header*) calloc(1, sizeof(pgp_packet_header));
+    
+    // Header Tag
+    unsigned char ptag;
+    r = fputc(ptag, fp);
+    if ( !VALIDATE_TAG(ptag) ) {
+        printf("Not a packet header\n");
+        return -1;
+    }
+    tmp_hdr->ptag = ptag;
+    unsigned int old_packet = IS_OLD_FORMAT(tmp_hdr->ptag);
+
+    unsigned int length_len;
+    if (old_packet) {
+        length_len = CALC_LENGTH_LEN (tmp_hdr->ptag);
+        file_read_bytes_alloc(fp, length_len, &(tmp_hdr->length));
+    } else { // New packet format
+        unsigned char len_octet_1 = fgetc(fp);
+        if (len_octet_1 < 192) {
+            length_len = 1;
+        } else if (len_octet_1 <= 223) {
+            length_len = 2;
+        } else if (len_octet_1 == 0xff) {
+            length_len = 5;
+        } else {
+            printf("Invalid length field for new pakcet format\n");
+            return -1;
+        }
+        tmp_hdr->length = (unsigned char*)calloc(length_len, sizeof(unsigned char));
+        tmp_hdr->length[0] = len_octet_1;
+        file_read_bytes(fp, length_len-1, &(tmp_hdr->length[1]));
+    }
+
+    print_bytearr("Packet length", tmp_hdr->length, 4);
+
+    if ( IS_PUB_KEY_PACKET(tmp_hdr->ptag)) {
+        pgp_pubkey_packet* pub_packet;
+        pgp_read_pubkey_packet(fp, &pub_packet);
+    }
+
+    if ( IS_SECRET_KEY_PACKET(tmp_hdr->ptag) ) {
+        pgp_seckey_packet* sec_packet;
+        pgp_read_seckey_packet(fp, &sec_packet);
+    }
+
+    return 0;
+}
+
+
 /*
  * Reads an OpenPGP message from file at @filepath
  * Returns the message to the pre-allocated @msg
@@ -722,6 +920,28 @@ int pgp_read_msg_file(const char* filepath, pgp_message* msg)
     msg->packet_type = GET_TAG(hdr->ptag);
     msg->pgp_packet = pgp_packet;
     msg->next = NULL;
+    // while()
+   
+    fclose(fp);
+    return 0;
+}
+
+// TODO:
+int pgp_write_msg_file(const char* filepath, pgp_message* msg)
+{
+    FILE* fp = fopen(filepath,"r");
+    if(!fp) {
+        perror("Error");
+        return -1;
+    }
+
+    // TODO:
+    // write ALL packets belonging to a message
+    // do {
+    void* pgp_packet = msg->pgp_packet;
+    // TODO: construct header
+    pgp_packet_header* hdr;// = msg->;
+    pgp_write_packet(fp, pgp_packet, hdr);
     // while()
    
     fclose(fp);
