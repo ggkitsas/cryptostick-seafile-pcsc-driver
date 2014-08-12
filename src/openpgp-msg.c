@@ -1,6 +1,9 @@
 #include <openssl/evp.h>
 #include <openssl/sha.h>
 #include <openssl/md5.h>
+#include <openssl/bn.h>
+#include <openssl/rsa.h>
+#include <openssl/rand.h>
 #include <openssl/err.h>
 
 #include "openpgp-msg.h"
@@ -28,6 +31,21 @@ unsigned int bytearr2uint(unsigned char* byte_arr, unsigned int len)
         weight *= 256;
     }
     return value;
+}
+
+/*
+ * Converts an integer to a 2-byte unsigned char arraya
+ * Int must be at the range of [0, 65535]
+ * The byte array is fresh allocated
+ */
+static 
+unsigned int int2bytearr2(int value, unsigned char arr[2])
+{
+    if(value > 65535 || value < 0 )
+        return -1;
+    
+    arr[1] = value / 256;
+    arr[0] = value-arr[1];
 }
 
 
@@ -785,6 +803,82 @@ int pgp_write_seckey_packet(FILE* fp, pgp_seckey_packet* seckey_pkt)
     pgp_write_seckey_data(fp, seckey_pkt, key);
 }
 
+
+int pgp_new_seckey_packet(RSA* rsa, unsigned char* passphrase, pgp_seckey_packet** pkt)
+{
+    ERR_load_crypto_strings();
+    char error[400];
+
+    pgp_seckey_packet* tmp_pkt = (pgp_seckey_packet*) malloc(sizeof(pgp_seckey_packet));
+
+    tmp_pkt->s2k_usage = 0xfe;
+
+    tmp_pkt->enc_algo = (unsigned char*)malloc(sizeof(unsigned char));
+    tmp_pkt->enc_algo[0] = SYM_AES128; // aes-128
+
+    tmp_pkt->s2k = (pgp_s2k*)malloc(sizeof(pgp_s2k));
+    tmp_pkt->s2k->type = S2K_TYPE_ITERATED_SALTED; 
+    tmp_pkt->s2k->hash_algo = HASH_SHA1;
+    if(!RAND_bytes(tmp_pkt->s2k->salt, 8))
+        RAND_pseudo_bytes(tmp_pkt->s2k->salt, 8);
+// TODO: caclulate count, gnupg way
+//    tmp_pkt->s2k->count = ;
+
+    tmp_pkt->iv = (unsigned char*)malloc(sizeof(unsigned char) * SYM_AES128_BLOCK_SIZE);
+
+    tmp_pkt->seckey_data = (pgp_seckey_data*) malloc(sizeof(pgp_seckey_data));
+
+    BN_CTX* bnctx = BN_CTX_new();
+    BIGNUM* rsa_u = BN_new();
+    BN_mod_inverse(rsa_u, rsa->p, rsa->q, bnctx);
+    if(rsa_u == NULL) {
+        ERR_error_string(ERR_get_error(), error);
+        printf("%s",error);
+        return -1;
+    }
+    
+    tmp_pkt->seckey_data->rsa_d = (pgp_mpi*)malloc(sizeof(pgp_mpi));
+    tmp_pkt->seckey_data->rsa_p = (pgp_mpi*)malloc(sizeof(pgp_mpi));
+    tmp_pkt->seckey_data->rsa_q = (pgp_mpi*)malloc(sizeof(pgp_mpi));
+    tmp_pkt->seckey_data->rsa_u = (pgp_mpi*)malloc(sizeof(pgp_mpi));
+    int d_len = BN_num_bytes(rsa->d);
+    int p_len = BN_num_bytes(rsa->p);
+    int q_len = BN_num_bytes(rsa->q);
+    int u_len = BN_num_bytes(rsa_u);
+    tmp_pkt->seckey_data->rsa_d->value = (unsigned char*) malloc(sizeof(unsigned char) * d_len);
+    tmp_pkt->seckey_data->rsa_p->value = (unsigned char*) malloc(sizeof(unsigned char) * p_len);
+    tmp_pkt->seckey_data->rsa_q->value = (unsigned char*) malloc(sizeof(unsigned char) * q_len);
+    tmp_pkt->seckey_data->rsa_u->value = (unsigned char*) malloc(sizeof(unsigned char) * u_len);
+    if (!BN_bn2bin(rsa->d, tmp_pkt->seckey_data->rsa_d->value)) {
+        ERR_error_string(ERR_get_error(), error);
+        printf("%s",error);
+        return -1;
+    }
+    int2bytearr2(BN_num_bits(rsa->d), tmp_pkt->seckey_data->rsa_d->length);
+    if(!BN_bn2bin(rsa->p, tmp_pkt->seckey_data->rsa_p->value)) {
+        ERR_error_string(ERR_get_error(), error);
+        printf("%s",error);
+        return -1;
+    }
+    int2bytearr2(BN_num_bits(rsa->p), tmp_pkt->seckey_data->rsa_p->length);
+    if(!BN_bn2bin(rsa->q, tmp_pkt->seckey_data->rsa_q->value)) {
+        ERR_error_string(ERR_get_error(), error);
+        printf("%s",error);
+        return -1;
+    }
+    int2bytearr2(BN_num_bits(rsa->q), tmp_pkt->seckey_data->rsa_q->length);
+    if(!BN_bn2bin(rsa_u, tmp_pkt->seckey_data->rsa_u->value)) {
+        ERR_error_string(ERR_get_error(), error);
+        printf("%s",error);
+        return -1;
+    }
+    int2bytearr2(BN_num_bits(rsa_u), tmp_pkt->seckey_data->rsa_u->length);
+
+    // TODO: calculate sha-1 hash
+    tmp_pkt->seckey_data->hash = (unsigned char*) malloc(sizeof(unsigned char)*HASH_SHA1_HASH_SIZE);
+    
+    *pkt = tmp_pkt;
+}
 
 /*
  * Reads a packet from file @fp,

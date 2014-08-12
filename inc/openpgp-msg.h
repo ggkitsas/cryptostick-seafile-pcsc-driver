@@ -281,12 +281,12 @@ typedef struct _pgp_pubkey_packet {
 }pgp_pubkey_packet;
 
 typedef struct _pgp_seckey_data {
-    unsigned char* hash; // SHA1-hash or checksum, depending of s2k_usage
-
     pgp_mpi* rsa_d;
     pgp_mpi* rsa_p;
     pgp_mpi* rsa_q;
     pgp_mpi* rsa_u;
+
+    unsigned char* hash; // SHA1-hash or checksum, depending of s2k_usage
 }pgp_seckey_data;
 
 typedef struct _pgp_seckey_packet {
@@ -304,7 +304,10 @@ typedef struct _pgp_seckey_packet {
 void pgp_print_pubkey_packet(pgp_pubkey_packet* pgp_packet);
 void pgp_print_seckey_packet(pgp_seckey_packet* pkt);
 int pgp_read_pubkey_packet(FILE* fp, pgp_pubkey_packet** pubkey_packet);
+int pgp_write_pubkey_packet(FILE* fp, pgp_pubkey_packet* pubkey_pkt);
 int pgp_read_packet(FILE* fp, void** pgp_packet, pgp_packet_header** hdr);
+int pgp_write_packet(FILE* fp, void* pgp_packet, pgp_packet_header* hdr);
 int pgp_read_msg_file(const char* filepath, pgp_message* msg);
+int pgp_write_msg_file(const char* filepath, pgp_message* msg);
 
 #endif // OPENPGP_MSG_H
