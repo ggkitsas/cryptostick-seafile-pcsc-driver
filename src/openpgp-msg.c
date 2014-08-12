@@ -1,5 +1,6 @@
 #include <openssl/evp.h>
 #include <openssl/sha.h>
+#include <openssl/md5.h>
 #include <openssl/err.h>
 
 #include "openpgp-msg.h"
@@ -545,7 +546,13 @@ int pgp_read_seckey_packet(FILE* fp, pgp_seckey_packet** seckey_packet)
              seckey_pkt->s2k_usage == 0xfe ) {
             pgp_derive_key(passphrase, seckey_pkt, &key);
         } else { // When no S2K exists, use MD5 to derive the key
-            // TODO
+            unsigned char md[HASH_MD5_HASH_SIZE];
+            unsigned int key_size = get_hash_size(seckey_pkt->enc_algo[0]);
+            MD5_CTX md5ctx;
+            MD5_Init(&md5ctx);
+            MD5_Update(&md5ctx, passphrase, strlen(passphrase));
+            MD5_Final(md, &md5ctx);
+            memcpy(key, md, key_size);
         }
     }
 
