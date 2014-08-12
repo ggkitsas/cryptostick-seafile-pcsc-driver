@@ -62,6 +62,20 @@ int file_read_bytes_alloc(FILE* fp, unsigned int byte_num, unsigned char** byte_
     file_read_bytes(fp, byte_num, *byte_array);
 }
 
+static
+int file_write_bytes(FILE* fp, unsigned int byte_num, unsigned char* byte_array)
+{
+    int i,r;
+    for(i=0; i<byte_num; i++) {
+        r = fputc(byte_array[i], fp);
+        if(r == EOF) {
+            free(byte_array);
+            return FILE_READ_BYTES_PREMATURE_EOF;
+        }
+    }
+    return 0;
+   
+}
 
 static
 void print_bytearr(const char* title, unsigned char* value, unsigned int value_len)
@@ -152,6 +166,20 @@ int pgp_read_mpi(FILE* fp, pgp_mpi** mpi)
     return 0;
 }
 
+int pgp_write_mpi(FILE* fp, pgp_mpi* mpi)
+{
+    int r;
+    r = file_write_bytes(fp, 2, mpi->length);
+    if(r != 0)
+        return r;
+
+    unsigned int value_len = bits2bytes( bytearr2uint(mpi->length, 2)); //bytes
+    r = file_write_bytes(fp, value_len, mpi->value);
+    if(r != 0)
+        return r;
+    return 0;
+}
+
 
 int pgp_read_s2k(FILE* fp, pgp_s2k** s2k)
 {
@@ -185,6 +213,31 @@ int pgp_read_s2k(FILE* fp, pgp_s2k** s2k)
     return 0;
 }
 
+int pgp_write_s2k(FILE* fp, pgp_s2k* s2k)
+{
+    int r;
+    r = fputc(s2k->type, fp);
+    if( s2k->type == S2K_TYPE_GNUPG )
+    {
+        printf("GnuPG keyrings not supported yet\n");
+        return UNSUPPROTED_S2K;
+    } else if ( s2k->type != S2K_TYPE_SIMPLE &&
+                s2k->type != S2K_TYPE_SALTED &&
+                s2k->type != S2K_TYPE_ITERATED_SALTED) {
+        printf("Unsupported s2k type\n");
+        return UNSUPPROTED_S2K;
+    }
+
+    r = fputc(s2k->hash_algo, fp);
+
+    if( s2k->type > S2K_TYPE_SIMPLE )
+        file_write_bytes(fp, 8, s2k->salt);
+
+    if( s2k->type == S2K_TYPE_ITERATED_SALTED )
+        r = fputc(s2k->count, fp);
+
+    return 0;
+}
 
 int pgp_read_pubkey_packet(FILE* fp, pgp_pubkey_packet** pubkey_packet)
 {
@@ -207,6 +260,22 @@ int pgp_read_pubkey_packet(FILE* fp, pgp_pubkey_packet** pubkey_packet)
     pgp_read_mpi(fp, &(pubkey_pkt->exponent));
 
     *pubkey_packet = pubkey_pkt;
+    return 0;
+}
+
+int pgp_write_pubkey_packet(FILE* fp, pgp_pubkey_packet* pubkey_pkt)
+{
+    int r;
+    r = fputc(pubkey_pkt->version, fp);
+
+    file_write_bytes(fp, 4, pubkey_pkt->creation_time);
+    if (pubkey_pkt->version == 0x03 )
+        file_write_bytes(fp, 2, pubkey_pkt->validity_period);
+    
+    r = fputc(pubkey_pkt->algo, fp);
+    pgp_write_mpi(fp, pubkey_pkt->modulus);
+    pgp_write_mpi(fp, pubkey_pkt->exponent);
+
     return 0;
 }
 
@@ -373,6 +442,13 @@ void pgp_cipher_update( EVP_CIPHER_CTX* cipherctx,
     EVP_CipherUpdate(cipherctx, *data_out, outlen, data_in, inlen);
 }
 
+static
+void pgp_cipher_finish(EVP_CIPHER_CTX* cipherctx)
+{ 
+//    EVP_CipherFinal_ex(cipherctx, dec_data, &dec_length);
+    EVP_CIPHER_CTX_cleanup(cipherctx);
+    EVP_CIPHER_CTX_free(cipherctx);
+}
 
 static
 int file_read_bytes_decrypt( EVP_CIPHER_CTX* cipherctx,
@@ -399,11 +475,17 @@ int file_read_bytes_decrypt_alloc( EVP_CIPHER_CTX* cipherctx,
 }
 
 static
-void pgp_cipher_finish(EVP_CIPHER_CTX* cipherctx)
-{ 
-//    EVP_CipherFinal_ex(cipherctx, dec_data, &dec_length);
-    EVP_CIPHER_CTX_cleanup(cipherctx);
-    EVP_CIPHER_CTX_free(cipherctx);
+int file_write_bytes_encrypt( EVP_CIPHER_CTX* cipherctx,
+                            FILE* fp, int length, unsigned char* data)
+{
+    int r;
+
+    unsigned char* enc_data = (unsigned char*) malloc(length * sizeof(unsigned char));
+    int outlen;
+    r = EVP_CipherUpdate(cipherctx, enc_data, &outlen, data, length);
+    file_write_bytes(fp, length, enc_data);
+    return 1-r; // we want to return 0->success, 1->failure 
+                // (complemetary of EVP_CipherUpdate)
 }
 
 int pgp_read_mpi_decrypt(EVP_CIPHER_CTX* cipherctx, FILE* fp, pgp_mpi** mpi)
