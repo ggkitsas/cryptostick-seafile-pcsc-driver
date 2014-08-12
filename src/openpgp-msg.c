@@ -475,6 +475,11 @@ int pgp_read_seckey_data(FILE* fp, pgp_seckey_packet* seckey_packet, unsigned ch
         checksum_update(chksum, seckey_packet->seckey_data->rsa_u->value, 
                     bits2bytes( bytearr2uint(seckey_packet->seckey_data->rsa_u->length, 2)));
 
+        if (bytearr2uint(seckey_packet->seckey_data->hash,2) != chksum) {
+            printf("Verifcation of secret key data failed\n");
+            return -1;
+        }
+
     } else if (seckey_packet->s2k_usage == 0xfe) {
         // 20 octet sha1 digest
         int r;
@@ -502,7 +507,11 @@ int pgp_read_seckey_data(FILE* fp, pgp_seckey_packet* seckey_packet, unsigned ch
         SHA1_Update(&shactx, seckey_packet->seckey_data->rsa_u->value, 
                 bits2bytes( bytearr2uint(seckey_packet->seckey_data->rsa_u->length, 2)));
         SHA1_Final(md, &shactx);
-print_bytearr("Verify sha1 digest",md, 20);
+
+        if (memcmp(seckey_packet->seckey_data->hash, md, 20) != 0) {
+            printf("Verifcation of secret key data failed\n");
+            return -1;
+        }
     }
 }
 
