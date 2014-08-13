@@ -71,10 +71,10 @@ int int2bytearr(unsigned int value, unsigned char** arr)
     }
     octet[3] = tmp_value;
 
-    *arr = (unsigned char*)malloc(arr_size);
+    *arr = (unsigned char*)malloc(sizeof(unsigned char) * arr_size);
     int i;
     for(i=0; i<arr_size; i++)
-        *(arr)[i] = octet[3-i];
+        (*(arr))[i] = octet[3-i];
 
     return arr_size;
 }
@@ -367,10 +367,14 @@ int pgp_write_pubkey_packet(FILE* fp, pgp_pubkey_packet* pubkey_pkt)
 {
     int r;
     r = fputc(pubkey_pkt->version, fp);
+    if ( r == EOF)
+        return -1;
 
     file_write_bytes(fp, 4, pubkey_pkt->creation_time);
-    if (pubkey_pkt->version == 0x03 )
+    if (pubkey_pkt->version == 0x03 ) {
+printf("V3 ??\n");
         file_write_bytes(fp, 2, pubkey_pkt->validity_period);
+    }
     
     r = fputc(pubkey_pkt->algo, fp);
     pgp_write_mpi(fp, pubkey_pkt->modulus);
@@ -386,8 +390,11 @@ int pgp_new_pubkey_packet(RSA* rsa, int key_usage, pgp_pubkey_packet** pkt)
 
     pgp_pubkey_packet* tmp_pkt = (pgp_pubkey_packet*)malloc(sizeof(pgp_pubkey_packet));
 
-    tmp_pkt->version = 4;
-//    tmp_pkt->creation_time // TODO
+    tmp_pkt->version = 0x04;
+    tmp_pkt->creation_time[0] = 0; // TODO
+    tmp_pkt->creation_time[1] = 0; // TODO
+    tmp_pkt->creation_time[2] = 0; // TODO
+    tmp_pkt->creation_time[3] = 0; // TODO
 
     tmp_pkt->validity_period == NULL;
     tmp_pkt->algo = PUB_RSA_ENC_SIG;    // TODO
@@ -1166,24 +1173,23 @@ int pgp_calc_packet_length (pgp_message* msg)
 int pgp_new_packet_header (pgp_message* msg, pgp_packet_header** hdr)
 {
     pgp_packet_header* tmp_hdr = (pgp_packet_header*)malloc(sizeof(pgp_packet_header));
-
     tmp_hdr->ptag = 0x80; // Old format, TODO: new format
     if (msg->packet_type == SECRET_KEY_TAG ||
         msg->packet_type == SECRET_SUBKEY_TAG ||
         msg->packet_type == PUBLIC_KEY_TAG ||
         msg->packet_type == PUBLIC_SUBKEY_TAG) {
         
-        tmp_hdr->ptag &= msg->packet_type << 2;
+        tmp_hdr->ptag |= msg->packet_type << 2;
         int pkt_length = pgp_calc_packet_length(msg);
         unsigned char* pkt_len_ch;
         int length_len = int2bytearr(pkt_length, &(tmp_hdr->length));
 
         if (length_len = 1)
-            tmp_hdr->ptag &= 0x00;
+            tmp_hdr->ptag |= 0x00;
         else if (length_len = 2)
-            tmp_hdr->ptag &= 0x01;
+            tmp_hdr->ptag |= 0x01;
         else
-            tmp_hdr->ptag &= 0x02;
+            tmp_hdr->ptag |= 0x02;
     }
 
     
@@ -1294,17 +1300,16 @@ int pgp_write_msg_file(const char* filepath, pgp_message* msg)
         return -1;
     }
 
-    // TODO:
     // write all packets belonging to a message
     void* pgp_packet;
     pgp_message* current_msg = msg;
     do {
         pgp_packet = current_msg->pgp_packet;
-
-        // TODO: construct header
         pgp_packet_header* hdr;
         pgp_new_packet_header(msg, &hdr);
         pgp_write_packet(fp, pgp_packet, hdr);
+        free(hdr);  // TODO: dedicated pgp_free_packet_header function
+printf("CHECKPOINT 1\n");
         current_msg = current_msg->next;
     } while(current_msg != NULL);
    
@@ -1312,4 +1317,14 @@ int pgp_write_msg_file(const char* filepath, pgp_message* msg)
     return 0;
 }
 
+void pgp_free_msg(pgp_message* msg)
+{
+    pgp_message* current_msg = msg;
+    pgp_message* next;
 
+    do {
+        next = current_msg->next;
+        free(current_msg->pgp_packet); // TODO: dedicated pgp_free_packet function
+        free(current_msg);
+    } while (next != NULL);
+}
