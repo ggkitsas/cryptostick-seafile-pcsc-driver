@@ -310,6 +310,6 @@ int pgp_write_packet(FILE* fp, void* pgp_packet, pgp_packet_header* hdr);
 int pgp_read_msg_file(const char* filepath, pgp_message** msg);
 int pgp_write_msg_file(const char* filepath, pgp_message* msg);
 void pgp_print_message(pgp_message* msg);
-void pgp_free_msg(pgp_message* msg);
+void pgp_free_msg(pgp_message** msg);
 
 #endif // OPENPGP_MSG_H

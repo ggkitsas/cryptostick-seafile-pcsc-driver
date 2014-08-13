@@ -156,13 +156,15 @@ void print_s2k(pgp_s2k* s2k)
     printf("\tCount: %.2x\n",s2k->count);
 }
 
-void pgp_print_pubkey_packet(pgp_pubkey_packet* pgp_packet)
+void pgp_print_pubkey_packet(pgp_pubkey_packet* pkt)
 {
-    printf("Version: %.2x\n", pgp_packet->version);
-    print_bytearr("Time", pgp_packet->creation_time, 4);
-    printf("Algorithm: %d\n", pgp_packet->algo);
-    print_mpi("Modulus", pgp_packet->modulus);
-    print_mpi("Exponent", pgp_packet->exponent);
+    printf("Version: %.2x\n", pkt->version);
+    print_bytearr("Time", pkt->creation_time, 4);
+    if(pkt->version == 0x03)
+        print_bytearr("Valitidy period", pkt->validity_period, 2);
+    printf("Algorithm: %d\n", pkt->algo);
+    print_mpi("Modulus", pkt->modulus);
+    print_mpi("Exponent", pkt->exponent);
 }
 
 
@@ -431,7 +433,7 @@ int pgp_calc_pubkey_packet_length(pgp_pubkey_packet* pkt)
                 +bits2bytes(bytearr2uint(pkt->modulus->length, 2)) // modulus length
                 +bits2bytes(bytearr2uint(pkt->exponent->length, 2));// exponent length
 
-    if (pkt->version = 0x03)
+    if (pkt->version == 0x03)
         length += 2; // validity_period
 
     return length;
@@ -929,7 +931,6 @@ int pgp_read_seckey_packet(FILE* fp, pgp_seckey_packet** seckey_packet)
 int pgp_write_seckey_packet(FILE* fp, pgp_seckey_packet* seckey_pkt)
 {
     int r;
-
     pgp_write_pubkey_packet(fp, seckey_pkt->pubkey_packet);
     r = fputc(seckey_pkt->s2k_usage, fp);
 
@@ -1309,7 +1310,6 @@ int pgp_write_msg_file(const char* filepath, pgp_message* msg)
         pgp_new_packet_header(msg, &hdr);
         pgp_write_packet(fp, pgp_packet, hdr);
         free(hdr);  // TODO: dedicated pgp_free_packet_header function
-printf("CHECKPOINT 1\n");
         current_msg = current_msg->next;
     } while(current_msg != NULL);
    
@@ -1317,14 +1317,28 @@ printf("CHECKPOINT 1\n");
     return 0;
 }
 
-void pgp_free_msg(pgp_message* msg)
+void pgp_free_msg(pgp_message** msg)
 {
-    pgp_message* current_msg = msg;
+    int i;
+    pgp_message* current_msg;
     pgp_message* next;
 
+    current_msg = *msg;
+    int packet_num = 0;
     do {
-        next = current_msg->next;
-        free(current_msg->pgp_packet); // TODO: dedicated pgp_free_packet function
-        free(current_msg);
-    } while (next != NULL);
+       current_msg = current_msg->next;
+       packet_num++;
+    } while (current_msg != NULL);
+    pgp_message** freeing_array = (pgp_message**)malloc(sizeof(pgp_message*) * packet_num);
+ 
+    current_msg = *msg;
+    for(i=packet_num-1; i>=0; i--) {
+        freeing_array[i] = current_msg;
+        current_msg = current_msg->next;
+    }
+
+    for(i=0; i<packet_num; i++) {
+        free(freeing_array[i]->pgp_packet); // TODO: dedicated pgp_free_packet function
+        free(freeing_array[i]);
+    }
 }
