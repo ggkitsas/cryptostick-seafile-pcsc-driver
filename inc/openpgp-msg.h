@@ -11,8 +11,6 @@
 #define IS_OLD_FORMAT(tag) (((tag) & 0x40) == 0x00 ? 1:0)
 
 /*   length   */
-#define OLD_FORMAT_GET_TAG(tag) ((tag) & OLD_FORMAT_TAG_MASK)
-#define NEW_FORMAT_GET_TAG(tag) ((tag) & NEW_FORMAT_TAG_MASK)
 #define OLD_FORMAT_GET_LENGTH_TYPE(tag) ((tag) & 0x03)
 #define ONE_OCTET_LENGTH            0x00
 #define TWO_OCTET_LENGTH            0x01
@@ -28,6 +26,8 @@
 /*   tag   */
 #define OLD_FORMAT_TAG_MASK 0x3c
 #define NEW_FORMAT_TAG_MASK 0x3f
+#define OLD_FORMAT_GET_TAG(tag) ((tag) & OLD_FORMAT_TAG_MASK)
+#define NEW_FORMAT_GET_TAG(tag) ((tag) & NEW_FORMAT_TAG_MASK)
 // old format
 #define RESERVED_TAG                0x00
 #define PUBKEY_ENC_SESSION_KEY_TAG  0x01
