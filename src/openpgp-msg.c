@@ -73,7 +73,7 @@ int int2bytearr(unsigned int value, unsigned char** arr)
     *arr = (unsigned char*)malloc(sizeof(unsigned char) * arr_size);
     int i;
     for(i=0; i<arr_size; i++)
-        (*(arr))[i] = octet[3-i];
+        (*(arr))[i] = octet[4-arr_size+i];
 
     return arr_size;
 }
