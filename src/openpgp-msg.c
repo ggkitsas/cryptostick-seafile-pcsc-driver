@@ -297,6 +297,41 @@ int pgp_write_pubkey_packet(FILE* fp, pgp_pubkey_packet* pubkey_pkt)
     return 0;
 }
 
+int pgp_new_pubkey_packet(RSA* rsa, int key_usage, pgp_pubkey_packet** pkt)
+{
+    ERR_load_crypto_strings();
+    char error[400];
+
+    pgp_pubkey_packet* tmp_pkt = (pgp_pubkey_packet*)malloc(sizeof(pgp_pubkey_packet));
+
+    tmp_pkt->version = 4;
+//    tmp_pkt->creation_time
+
+    tmp_pkt->validity_period == NULL;
+    tmp_pkt->algo = PUB_RSA_ENC_SIG;    // TODO
+    tmp_pkt->modulus = (pgp_mpi*)malloc(sizeof(pgp_mpi));
+    tmp_pkt->exponent = (pgp_mpi*)malloc(sizeof(pgp_mpi));
+    int n_len = BN_num_bytes(rsa->n);
+    int e_len = BN_num_bytes(rsa->e);
+    tmp_pkt->modulus->value = (unsigned char*) malloc(sizeof(unsigned char) * n_len);
+    tmp_pkt->exponent->value = (unsigned char*) malloc(sizeof(unsigned char) * e_len);
+    if (!BN_bn2bin(rsa->n, tmp_pkt->modulus->value)) {
+        ERR_error_string(ERR_get_error(), error);
+        printf("%s",error);
+        return -1;
+    }
+    int2bytearr2(BN_num_bits(rsa->n), tmp_pkt->modulus->length);
+    if (!BN_bn2bin(rsa->e, tmp_pkt->exponent->value)) {
+        ERR_error_string(ERR_get_error(), error);
+        printf("%s",error);
+        return -1;
+    }
+    int2bytearr2(BN_num_bits(rsa->e), tmp_pkt->exponent->length);
+
+    *pkt = tmp_pkt;
+    return 0;
+}
+
 static
 const char* ask_passphrase()
 {
@@ -1015,7 +1050,7 @@ int pgp_read_msg_file(const char* filepath, pgp_message* msg)
     msg->pgp_packet = pgp_packet;
     msg->next = NULL;
     // while()
-   
+
     fclose(fp);
     return 0;
 }
@@ -1039,5 +1074,25 @@ int pgp_write_msg_file(const char* filepath, pgp_message* msg)
     // while()
    
     fclose(fp);
+    return 0;
+}
+
+/*
+ * Adds @packet of type @packet_type to the message packet chain @msg
+ * if @msg is NULL, a new message is allocated
+ */
+int pgp_msg_add_packet(int packet_type, void* packet, pgp_message** msg)
+{
+    if(*msg == NULL) {
+        msg->packet_type = packet_type;
+        msg->pgp_packet = packet;
+        msg->next = NULL;
+    } else {
+        msg->next = (pgp_message*)malloc(sizeof(pgp_message));
+        msg->next->packet_type = packet_type;
+        msg->next->pgp_packet = packet;
+        msg->next->next = NULL;
+    }
+
     return 0;
 }
