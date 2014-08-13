@@ -34,7 +34,9 @@ enum _access {      /* access flags for the respective DO/file */
 
 #define SC_OPENPGP_KEYFORMAT_STD    0    /* See 4.3.3.6 Algorithm Attributes */
 #define SC_OPENPGP_KEYFORMAT_STDN   1    /* OpenPGP card spec v2 */
+#define SC_OPENPGP_KEY_SIGN     1
 #define SC_OPENPGP_KEY_ENCR     2
+#define SC_OPENPGP_KEY_AUTH     3
 
 
 typedef struct sc_cardctl_openpgp_keygen_info {

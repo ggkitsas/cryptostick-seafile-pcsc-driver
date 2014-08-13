@@ -1311,8 +1311,8 @@ int pgp_store_key(card_t *card, sc_cardctl_openpgp_keystore_info_t *key_info)
     int r=0;
 
     /* Validate */
-//    if (key_info->keytype < 1 || key_info->keytype > 3) {
-    if (key_info->keytype != 2) {
+    if (key_info->keytype < 1 || key_info->keytype > 3) {
+//    if (key_info->keytype != 2) {
         printf("Unknown key type %d.\n", key_info->keytype);
         LOG_FUNC_RETURN( SC_ERROR_INVALID_ARGUMENTS);
     }  
