@@ -1041,6 +1041,7 @@ int pgp_read_packet(FILE* fp, void** pgp_packet, pgp_packet_header** hdr)
         pgp_read_seckey_packet(fp, &sec_packet);
         *pgp_packet = (void*)sec_packet;
     } else {// Unsupported packet, skip
+        printf("Skipping packet..\n");
         *pgp_packet = NULL;
         *hdr = NULL;
         unsigned char* sink;
@@ -1117,13 +1118,11 @@ int pgp_write_packet(FILE* fp, void* pgp_packet, pgp_packet_header* hdr)
 int pgp_msg_add_packet(int packet_type, void* packet, pgp_message** msg)
 {
     if(*msg == NULL) {
-printf("NEW MESSAGE, type = %d\n",packet_type);
         *msg = (pgp_message*)malloc(sizeof(pgp_message));
         (*msg)->packet_type = packet_type;
         (*msg)->pgp_packet = packet;
         (*msg)->next = NULL;
     } else {
-printf("ADDING TO MESSAGE, tpye = %d\n", packet_type);
         (*msg)->next = (pgp_message*)malloc(sizeof(pgp_message));
         (*msg)->next->packet_type = packet_type;
         (*msg)->next->pgp_packet = packet;
@@ -1153,9 +1152,7 @@ int pgp_read_msg_file(const char* filepath, pgp_message** msg)
 
     do {
         r = pgp_read_packet(fp, &pgp_packet, &hdr);
-        printf("pgp_packet = %p, hdr = %p\n",pgp_packet, hdr);
         if(r==0 && pgp_packet != NULL) {
-            printf("tag = %.2x\n", GET_TAG(hdr->ptag));
             pgp_msg_add_packet( GET_TAG(hdr->ptag), pgp_packet, msg);
         }
 
