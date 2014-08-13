@@ -70,7 +70,6 @@ int int2bytearr(unsigned int value, unsigned char** arr)
         tmp_value -= octet[2] * 256;
     }
     octet[3] = tmp_value;
-
     *arr = (unsigned char*)malloc(sizeof(unsigned char) * arr_size);
     int i;
     for(i=0; i<arr_size; i++)
@@ -1068,7 +1067,7 @@ tmp_pkt->s2k->count = 214; // Hardcoded for now
     int2bytearr2(BN_num_bits(rsa_u), tmp_pkt->seckey_data->rsa_u->length);
 
     // TODO: calculate sha-1 hash
-    tmp_pkt->seckey_data->hash = (unsigned char*) malloc(sizeof(unsigned char)*HASH_SHA1_HASH_SIZE);
+    tmp_pkt->seckey_data->hash = (unsigned char*) calloc(1, sizeof(unsigned char)*HASH_SHA1_HASH_SIZE);
     
     *pkt = tmp_pkt;
 }
@@ -1223,12 +1222,11 @@ int pgp_new_packet_header (pgp_message* msg, pgp_packet_header** hdr)
         
         tmp_hdr->ptag |= msg->packet_type << 2;
         int pkt_length = pgp_calc_packet_length(msg);
-        unsigned char* pkt_len_ch;
         int length_len = int2bytearr(pkt_length, &(tmp_hdr->length));
 
-        if (length_len = 1)
+        if (length_len == 1)
             tmp_hdr->ptag |= 0x00;
-        else if (length_len = 2)
+        else if (length_len == 2)
             tmp_hdr->ptag |= 0x01;
         else
             tmp_hdr->ptag |= 0x02;
