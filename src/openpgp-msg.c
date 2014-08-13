@@ -57,13 +57,14 @@ unsigned int int2bytearr2(int value, unsigned char arr[2])
 static
 int file_read_bytes(FILE* fp, unsigned int byte_num, unsigned char* byte_array)
 {
-    int i;
+    int i,c;
     for(i=0; i<byte_num; i++) {
-        byte_array[i] = fgetc(fp);
-        if(byte_array[i] == EOF) {
+        c = fgetc(fp);
+        if(c == EOF) {
             free(byte_array);
             return FILE_READ_BYTES_PREMATURE_EOF;
         }
+        byte_array[i] = c;
     }
     return 0;
 }
@@ -77,7 +78,7 @@ static
 int file_read_bytes_alloc(FILE* fp, unsigned int byte_num, unsigned char** byte_array)
 {
     *byte_array = (unsigned char*) calloc(1, byte_num * sizeof(unsigned char));
-    file_read_bytes(fp, byte_num, *byte_array);
+    return file_read_bytes(fp, byte_num, *byte_array);
 }
 
 static
@@ -167,6 +168,31 @@ void pgp_print_seckey_packet(pgp_seckey_packet* pkt)
     print_seckey_data(pkt);
 }
 
+void pgp_print_packet(pgp_message* pkt)
+{
+    switch(pkt->packet_type) {
+        case SECRET_KEY_TAG:
+        case SECRET_SUBKEY_TAG:
+            pgp_print_seckey_packet((pgp_seckey_packet*)pkt->pgp_packet);
+            break;
+        case PUBLIC_KEY_TAG:
+        case PUBLIC_SUBKEY_TAG:
+            pgp_print_pubkey_packet((pgp_pubkey_packet*)pkt->pgp_packet);
+            break;
+        default:
+            printf("Uknown pakcet\n");
+    }
+}
+
+void pgp_print_message(pgp_message* msg)
+{
+    pgp_message* cur_msg = msg;
+    do {
+        printf("MESSAGE------------------------------------------\n");
+        pgp_print_packet(cur_msg);
+        cur_msg = cur_msg->next;
+    }while(cur_msg != NULL);
+}
 
 int pgp_read_mpi(FILE* fp, pgp_mpi** mpi)
 {
@@ -259,13 +285,18 @@ int pgp_write_s2k(FILE* fp, pgp_s2k* s2k)
 
 int pgp_read_pubkey_packet(FILE* fp, pgp_pubkey_packet** pubkey_packet)
 {
+    int r;
     pgp_pubkey_packet* pubkey_pkt = (pgp_pubkey_packet*) calloc(1, sizeof(pgp_pubkey_packet));
 
     pubkey_pkt->version = fgetc(fp);
-    file_read_bytes(fp, 4, pubkey_pkt->creation_time);
-    if (pubkey_pkt->version == 0x03 )
-        file_read_bytes_alloc(fp, 2, &(pubkey_pkt->validity_period));
-    else 
+    r = file_read_bytes(fp, 4, pubkey_pkt->creation_time);
+    if (r!=0)
+        return r;
+    if (pubkey_pkt->version == 0x03 ) {
+        r = file_read_bytes_alloc(fp, 2, &(pubkey_pkt->validity_period));
+        if (r!=0)
+            return r;
+    } else {
         if (pubkey_pkt->version == 0x04)
             pubkey_pkt->validity_period = NULL;
         else {
@@ -273,6 +304,7 @@ int pgp_read_pubkey_packet(FILE* fp, pgp_pubkey_packet** pubkey_packet)
                         pubkey_pkt->version);
             return -1;
         }
+    }
     pubkey_pkt->algo = fgetc(fp);
     pgp_read_mpi(fp, &(pubkey_pkt->modulus));
     pgp_read_mpi(fp, &(pubkey_pkt->exponent));
@@ -757,21 +789,29 @@ int pgp_write_seckey_data(FILE* fp, pgp_seckey_packet* seckey_packet, unsigned c
 
 int pgp_read_seckey_packet(FILE* fp, pgp_seckey_packet** seckey_packet)
 {
+    int r;
     pgp_seckey_packet* seckey_pkt = (pgp_seckey_packet*)calloc(1, sizeof(pgp_seckey_packet));
 
-    pgp_read_pubkey_packet(fp, &(seckey_pkt->pubkey_packet));
+    r = pgp_read_pubkey_packet(fp, &(seckey_pkt->pubkey_packet));
+    if(r!=0)
+        return r;
     seckey_pkt->s2k_usage = fgetc(fp);
     if ( seckey_pkt->s2k_usage == 0xff || 
          seckey_pkt->s2k_usage == 0xfe ) {
-        file_read_bytes_alloc(fp, 1, &(seckey_pkt->enc_algo));
+        r = file_read_bytes_alloc(fp, 1, &(seckey_pkt->enc_algo));
+        if (r!=0)
+            return r;
         pgp_read_s2k(fp, &(seckey_pkt->s2k));
     } else {
         seckey_pkt->enc_algo = &(seckey_pkt->s2k_usage);
         seckey_pkt->s2k = NULL;
     }
 
-    if( seckey_pkt->s2k_usage != 0x00 )
-        file_read_bytes_alloc(fp, get_block_size(seckey_pkt->enc_algo[0]), &(seckey_pkt->iv));
+    if( seckey_pkt->s2k_usage != 0x00 ) {
+        r = file_read_bytes_alloc(fp, get_block_size(seckey_pkt->enc_algo[0]), &(seckey_pkt->iv));
+        if(r!=0)
+            return r;
+    }
     else
         seckey_pkt->iv = NULL;
 
@@ -915,6 +955,29 @@ int pgp_new_seckey_packet(RSA* rsa, unsigned char* passphrase, pgp_seckey_packet
     *pkt = tmp_pkt;
 }
 
+
+static
+int pgp_get_packet_length(pgp_packet_header *hdr)
+{
+    unsigned int old_packet = IS_OLD_FORMAT(hdr->ptag);
+    
+    unsigned int length_len;
+    if(old_packet)
+    {
+        length_len = CALC_LENGTH_LEN (hdr->ptag);
+        return bytearr2uint(hdr->length, length_len);   
+    } else {
+        length_len = bytearr2uint(hdr->length, 1);
+        if(length_len < 192 )
+            return length_len;
+        else if (length_len <= 223) {
+            int octet_1 = hdr->length[1];
+            return ((octet_1 - 192) << 8) + hdr->length[2] + 192;
+        } else if (length_len == 0xff)
+            return bytearr2uint(&(hdr->length[1]), 4);
+    }
+}
+
 /*
  * Reads a packet from file @fp,
  * Stores the packet to the fresh-allocated @pgp_packet, 
@@ -922,12 +985,15 @@ int pgp_new_seckey_packet(RSA* rsa, unsigned char* passphrase, pgp_seckey_packet
  */
 int pgp_read_packet(FILE* fp, void** pgp_packet, pgp_packet_header** hdr)
 {
-    int i;
+    int i,r,c;
     pgp_packet_header* tmp_hdr = (pgp_packet_header*) calloc(1, sizeof(pgp_packet_header));
     
     // Header Tag
     unsigned char ptag;
-    ptag = fgetc(fp);
+    c = fgetc(fp);
+    if(c == EOF)
+        return -1;
+    ptag = c;
     if ( !VALIDATE_TAG(ptag) ) {
         printf("Not a packet header\n");
         return -1;
@@ -938,9 +1004,15 @@ int pgp_read_packet(FILE* fp, void** pgp_packet, pgp_packet_header** hdr)
     unsigned int length_len;
     if (old_packet) {
         length_len = CALC_LENGTH_LEN (tmp_hdr->ptag);
-        file_read_bytes_alloc(fp, length_len, &(tmp_hdr->length));
+        r = file_read_bytes_alloc(fp, length_len, &(tmp_hdr->length));
+        if (r!=0)
+            return r;
     } else { // New packet format
-        unsigned char len_octet_1 = fgetc(fp);
+        unsigned char len_octet_1;
+        c = fgetc(fp);
+        if(c == EOF)
+            return -1;
+        len_octet_1 = c;
         if (len_octet_1 < 192) {
             length_len = 1;
         } else if (len_octet_1 <= 223) {
@@ -953,21 +1025,32 @@ int pgp_read_packet(FILE* fp, void** pgp_packet, pgp_packet_header** hdr)
         }
         tmp_hdr->length = (unsigned char*)calloc(length_len, sizeof(unsigned char));
         tmp_hdr->length[0] = len_octet_1;
-        file_read_bytes(fp, length_len-1, &(tmp_hdr->length[1]));
+        r = file_read_bytes(fp, length_len-1, &(tmp_hdr->length[1]));
+        if (r!=0)
+            return r;
     }
 
-    print_bytearr("Packet length", tmp_hdr->length, 4);
+    print_bytearr("Packet length", tmp_hdr->length, length_len);
 
     if ( IS_PUB_KEY_PACKET(tmp_hdr->ptag)) {
         pgp_pubkey_packet* pub_packet;
         pgp_read_pubkey_packet(fp, &pub_packet);
         *pgp_packet = (void*)pub_packet;
-    }
-
-    if ( IS_SECRET_KEY_PACKET(tmp_hdr->ptag) ) {
+    } else if ( IS_SECRET_KEY_PACKET(tmp_hdr->ptag) ) {
         pgp_seckey_packet* sec_packet;
         pgp_read_seckey_packet(fp, &sec_packet);
         *pgp_packet = (void*)sec_packet;
+    } else {// Unsupported packet, skip
+        *pgp_packet = NULL;
+        *hdr = NULL;
+        unsigned char* sink;
+        int pkt_len = pgp_get_packet_length(tmp_hdr);
+        r = file_read_bytes_alloc(fp, pkt_len, &sink);
+        free(sink);
+        if(r!=0)
+            printf("r = %d\n",r);
+            return r;
+        return 0;
     }
 
     *hdr = tmp_hdr;
@@ -1027,13 +1110,36 @@ int pgp_write_packet(FILE* fp, void* pgp_packet, pgp_packet_header* hdr)
     return 0;
 }
 
+/*
+ * Adds @packet of type @packet_type to the message packet chain @msg
+ * if @msg is NULL, a new message is allocated
+ */
+int pgp_msg_add_packet(int packet_type, void* packet, pgp_message** msg)
+{
+    if(*msg == NULL) {
+printf("NEW MESSAGE, type = %d\n",packet_type);
+        *msg = (pgp_message*)malloc(sizeof(pgp_message));
+        (*msg)->packet_type = packet_type;
+        (*msg)->pgp_packet = packet;
+        (*msg)->next = NULL;
+    } else {
+printf("ADDING TO MESSAGE, tpye = %d\n", packet_type);
+        (*msg)->next = (pgp_message*)malloc(sizeof(pgp_message));
+        (*msg)->next->packet_type = packet_type;
+        (*msg)->next->pgp_packet = packet;
+        (*msg)->next->next = NULL;
+    }
+
+    return 0;
+}
 
 /*
  * Reads an OpenPGP message from file at @filepath
  * Returns the message to the pre-allocated @msg
  */
-int pgp_read_msg_file(const char* filepath, pgp_message* msg)
+int pgp_read_msg_file(const char* filepath, pgp_message** msg)
 {
+    int r;
     FILE* fp = fopen(filepath,"r");
     if(!fp) {
         perror("Error");
@@ -1042,14 +1148,23 @@ int pgp_read_msg_file(const char* filepath, pgp_message* msg)
 
     // TODO:
     // read ALL packets belonging to a message
-    // do {
     void* pgp_packet;
     pgp_packet_header* hdr;
-    pgp_read_packet(fp, &pgp_packet, &hdr);
-    msg->packet_type = GET_TAG(hdr->ptag);
-    msg->pgp_packet = pgp_packet;
-    msg->next = NULL;
-    // while()
+
+    do {
+        r = pgp_read_packet(fp, &pgp_packet, &hdr);
+        printf("pgp_packet = %p, hdr = %p\n",pgp_packet, hdr);
+        if(r==0 && pgp_packet != NULL) {
+            printf("tag = %.2x\n", GET_TAG(hdr->ptag));
+            pgp_msg_add_packet( GET_TAG(hdr->ptag), pgp_packet, msg);
+        }
+
+        /*
+        msg->packet_type = GET_TAG(hdr->ptag);
+        msg->pgp_packet = pgp_packet;
+        msg->next = NULL;
+        */
+    } while(r == 0);
 
     fclose(fp);
     return 0;
@@ -1071,28 +1186,10 @@ int pgp_write_msg_file(const char* filepath, pgp_message* msg)
     // TODO: construct header
     pgp_packet_header* hdr;// = msg->;
     pgp_write_packet(fp, pgp_packet, hdr);
-    // while()
+    //} while(current_msg->next == NULL);
    
     fclose(fp);
     return 0;
 }
 
-/*
- * Adds @packet of type @packet_type to the message packet chain @msg
- * if @msg is NULL, a new message is allocated
- */
-int pgp_msg_add_packet(int packet_type, void* packet, pgp_message** msg)
-{
-    if(*msg == NULL) {
-        msg->packet_type = packet_type;
-        msg->pgp_packet = packet;
-        msg->next = NULL;
-    } else {
-        msg->next = (pgp_message*)malloc(sizeof(pgp_message));
-        msg->next->packet_type = packet_type;
-        msg->next->pgp_packet = packet;
-        msg->next->next = NULL;
-    }
 
-    return 0;
-}
