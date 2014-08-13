@@ -263,6 +263,12 @@ int pgp_calc_mpi_length(pgp_mpi* mpi)
     return length;
 }
 
+void pgp_free_mpi(pgp_mpi** mpi)
+{
+    free((*mpi)->value);
+    free(*mpi);
+}
+
 int pgp_read_s2k(FILE* fp, pgp_s2k** s2k)
 {
     pgp_s2k* tmp_s2k = (pgp_s2k*)calloc(1, sizeof(pgp_s2k));
@@ -437,6 +443,17 @@ int pgp_calc_pubkey_packet_length(pgp_pubkey_packet* pkt)
         length += 2; // validity_period
 
     return length;
+}
+
+void pgp_free_pubkey_packet(void** pkt)
+{
+    pgp_pubkey_packet* pub_pkt = (pgp_pubkey_packet*)(*pkt);
+
+    free( pub_pkt->validity_period );
+    pgp_free_mpi( &(pub_pkt->modulus) );
+    pgp_free_mpi( &(pub_pkt->exponent) );
+
+    free(*pkt);
 }
 
 static
@@ -877,6 +894,17 @@ int pgp_calc_seckey_data_length(pgp_seckey_packet* pkt)
     return length;
 }
 
+void pgp_free_seckey_data(pgp_seckey_data** data)
+{
+    pgp_free_mpi( &((*data)->rsa_d) );
+    pgp_free_mpi( &((*data)->rsa_p) );
+    pgp_free_mpi( &((*data)->rsa_q) );
+    pgp_free_mpi( &((*data)->rsa_u) );
+    free((*data)->hash);
+
+    free(*data);
+}
+
 int pgp_read_seckey_packet(FILE* fp, pgp_seckey_packet** seckey_packet)
 {
     int r;
@@ -1045,6 +1073,19 @@ tmp_pkt->s2k->count = 214; // Hardcoded for now
     *pkt = tmp_pkt;
 }
 
+void pgp_free_seckey_packet(void** pkt)
+{
+    pgp_seckey_packet* sec_pkt = (pgp_seckey_packet*)(*pkt);
+
+    pgp_free_pubkey_packet( (void**)(&(sec_pkt->pubkey_packet)) );
+    free( sec_pkt->enc_algo );
+    free( sec_pkt->s2k );
+    free( sec_pkt->iv );
+    pgp_free_seckey_data( &(sec_pkt->seckey_data) );
+
+    free(*pkt);
+}
+
 int pgp_calc_seckey_packet_length (pgp_seckey_packet* pkt) 
 {
     int length = pgp_calc_pubkey_packet_length(pkt->pubkey_packet)  // pubkey_packet
@@ -1197,7 +1238,12 @@ int pgp_new_packet_header (pgp_message* msg, pgp_packet_header** hdr)
     *hdr = tmp_hdr;
 }
 
-// TODO:
+void pgp_free_packet_header(pgp_packet_header** hdr)
+{
+    free((*hdr)->length);
+    free(*hdr);
+}
+
 int pgp_write_packet(FILE* fp, void* pgp_packet, pgp_packet_header* hdr)
 {
     int i,r;
@@ -1292,7 +1338,6 @@ int pgp_read_msg_file(const char* filepath, pgp_message** msg)
     return 0;
 }
 
-// TODO:
 int pgp_write_msg_file(const char* filepath, pgp_message* msg)
 {
     FILE* fp = fopen(filepath,"w+");
@@ -1309,7 +1354,7 @@ int pgp_write_msg_file(const char* filepath, pgp_message* msg)
         pgp_packet_header* hdr;
         pgp_new_packet_header(msg, &hdr);
         pgp_write_packet(fp, pgp_packet, hdr);
-        free(hdr);  // TODO: dedicated pgp_free_packet_header function
+        pgp_free_packet_header(&hdr);
         current_msg = current_msg->next;
     } while(current_msg != NULL);
    
@@ -1338,7 +1383,15 @@ void pgp_free_msg(pgp_message** msg)
     }
 
     for(i=0; i<packet_num; i++) {
-        free(freeing_array[i]->pgp_packet); // TODO: dedicated pgp_free_packet function
+
+        if (freeing_array[i]->packet_type == SECRET_KEY_TAG || 
+           freeing_array[i]->packet_type == SECRET_KEY_TAG)
+            pgp_free_seckey_packet(&(freeing_array[i]->pgp_packet));
+
+        else if (freeing_array[i]->packet_type == PUBLIC_KEY_TAG || 
+                freeing_array[i]->packet_type == PUBLIC_SUBKEY_TAG)
+            pgp_free_pubkey_packet(&(freeing_array[i]->pgp_packet));
+
         free(freeing_array[i]);
     }
 }
