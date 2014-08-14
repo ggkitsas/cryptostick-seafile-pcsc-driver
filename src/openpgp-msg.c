@@ -266,6 +266,7 @@ void pgp_free_mpi(pgp_mpi** mpi)
 {
     free((*mpi)->value);
     free(*mpi);
+    *mpi = NULL;
 }
 
 int pgp_read_s2k(FILE* fp, pgp_s2k** s2k)
@@ -452,6 +453,7 @@ void pgp_free_pubkey_packet(void** pkt)
     pgp_free_mpi( &(pub_pkt->exponent) );
 
     free(*pkt);
+    *pkt = NULL;
 }
 
 static
@@ -901,6 +903,7 @@ void pgp_free_seckey_data(pgp_seckey_data** data)
     free((*data)->hash);
 
     free(*data);
+    *data = NULL;
 }
 
 int pgp_read_seckey_packet(FILE* fp, pgp_seckey_packet** seckey_packet)
@@ -1085,6 +1088,7 @@ void pgp_free_seckey_packet(void** pkt)
     pgp_free_seckey_data( &(sec_pkt->seckey_data) );
 
     free(*pkt);
+    *pkt = NULL;
 }
 
 int pgp_calc_seckey_packet_length (pgp_seckey_packet* pkt) 
@@ -1246,6 +1250,7 @@ void pgp_free_packet_header(pgp_packet_header** hdr)
 {
     free((*hdr)->length);
     free(*hdr);
+    *hdr = NULL;
 }
 
 int pgp_write_packet(FILE* fp, void* pgp_packet, pgp_packet_header* hdr)
@@ -1403,5 +1408,6 @@ void pgp_free_msg(pgp_message** msg)
             pgp_free_pubkey_packet(&(freeing_array[i]->pgp_packet));
 
         free(freeing_array[i]);
+        freeing_array[i] = NULL;
     }
 }
