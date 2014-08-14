@@ -305,11 +305,15 @@ void pgp_print_pubkey_packet(pgp_pubkey_packet* pgp_packet);
 void pgp_print_seckey_packet(pgp_seckey_packet* pkt);
 int pgp_read_pubkey_packet(FILE* fp, pgp_pubkey_packet** pubkey_packet);
 int pgp_write_pubkey_packet(FILE* fp, pgp_pubkey_packet* pubkey_pkt);
+int pgp_new_pubkey_packet(RSA* rsa, int key_usage, pgp_pubkey_packet** pkt);
+int pgp_new_seckey_packet(RSA* rsa, unsigned char* passphrase, pgp_seckey_packet** pkt);
 int pgp_read_packet(FILE* fp, void** pgp_packet, pgp_packet_header** hdr);
 int pgp_write_packet(FILE* fp, void* pgp_packet, pgp_packet_header* hdr);
+void pgp_print_packet(pgp_message* msg);
 int pgp_read_msg_file(const char* filepath, pgp_message** msg);
 int pgp_write_msg_file(const char* filepath, pgp_message* msg);
 void pgp_print_message(pgp_message* msg);
 void pgp_free_msg(pgp_message** msg);
+int pgp_msg_add_packet(int packet_type, void* packet, pgp_message** msg);
 
 #endif // OPENPGP_MSG_H

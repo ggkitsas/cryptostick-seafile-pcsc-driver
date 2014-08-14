@@ -44,8 +44,8 @@ int int2bytearr2(int value, unsigned char arr[2])
     if(value > 65535 || value < 0 )
         return -1;
     
-    arr[1] = value / 256;
-    arr[0] = value-arr[1];
+    arr[0] = value / 256;
+    arr[1] = value-arr[0]*256;
 }
 
 static
@@ -199,16 +199,16 @@ void pgp_print_seckey_packet(pgp_seckey_packet* pkt)
     print_seckey_data(pkt);
 }
 
-void pgp_print_packet(pgp_message* pkt)
+void pgp_print_packet(pgp_message* msg)
 {
-    switch(pkt->packet_type) {
+    switch(msg->packet_type) {
         case SECRET_KEY_TAG:
         case SECRET_SUBKEY_TAG:
-            pgp_print_seckey_packet((pgp_seckey_packet*)pkt->pgp_packet);
+            pgp_print_seckey_packet((pgp_seckey_packet*)msg->pgp_packet);
             break;
         case PUBLIC_KEY_TAG:
         case PUBLIC_SUBKEY_TAG:
-            pgp_print_pubkey_packet((pgp_pubkey_packet*)pkt->pgp_packet);
+            pgp_print_pubkey_packet((pgp_pubkey_packet*)msg->pgp_packet);
             break;
         default:
             printf("Uknown packet\n");
@@ -1001,11 +1001,12 @@ int pgp_new_seckey_packet(RSA* rsa, unsigned char* passphrase, pgp_seckey_packet
 
     pgp_seckey_packet* tmp_pkt = (pgp_seckey_packet*) malloc(sizeof(pgp_seckey_packet));
 
+    pgp_new_pubkey_packet(rsa, 0, &(tmp_pkt->pubkey_packet));
+
     tmp_pkt->s2k_usage = 0xfe;
 
     tmp_pkt->enc_algo = (unsigned char*)malloc(sizeof(unsigned char));
     tmp_pkt->enc_algo[0] = SYM_AES128; // aes-128
-
     tmp_pkt->s2k = (pgp_s2k*)malloc(sizeof(pgp_s2k));
     tmp_pkt->s2k->type = S2K_TYPE_ITERATED_SALTED; 
     tmp_pkt->s2k->hash_algo = HASH_SHA1;
@@ -1016,6 +1017,8 @@ int pgp_new_seckey_packet(RSA* rsa, unsigned char* passphrase, pgp_seckey_packet
 tmp_pkt->s2k->count = 214; // Hardcoded for now
 
     tmp_pkt->iv = (unsigned char*)malloc(sizeof(unsigned char) * SYM_AES128_BLOCK_SIZE);
+    if(!RAND_bytes(tmp_pkt->iv, SYM_AES128_BLOCK_SIZE))
+        RAND_pseudo_bytes(tmp_pkt->iv, SYM_AES128_BLOCK_SIZE);
 
     tmp_pkt->seckey_data = (pgp_seckey_data*) malloc(sizeof(pgp_seckey_data));
 
@@ -1302,6 +1305,7 @@ int pgp_msg_add_packet(int packet_type, void* packet, pgp_message** msg)
         (*msg)->pgp_packet = packet;
         (*msg)->next = NULL;
     } else {
+        // Traverse the chain to find the last packet
         pgp_message* current_msg = *msg;
         while(current_msg->next != NULL) {
             current_msg = current_msg->next;
