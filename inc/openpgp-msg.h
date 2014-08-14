@@ -12,10 +12,10 @@
 
 /*   length   */
 #define OLD_FORMAT_GET_LENGTH_TYPE(tag) ((tag) & 0x03)
-#define ONE_OCTET_LENGTH            0x00
-#define TWO_OCTET_LENGTH            0x01
-#define FIVE_OCTET_LENGTH           0x02
-#define INDETERMINATE_OCTET_LENGTH  0x03
+#define ONE_OCTET_LENGTH            0
+#define TWO_OCTET_LENGTH            1
+#define FIVE_OCTET_LENGTH           2
+#define INDETERMINATE_OCTET_LENGTH  3
 
 #define CALC_LENGTH_LEN(tag)           \
                 (IS_OLD_FORMAT((tag)) ? \
@@ -29,25 +29,25 @@
 #define OLD_FORMAT_GET_TAG(tag) ((tag) & OLD_FORMAT_TAG_MASK)
 #define NEW_FORMAT_GET_TAG(tag) ((tag) & NEW_FORMAT_TAG_MASK)
 // old format
-#define RESERVED_TAG                0x00
-#define PUBKEY_ENC_SESSION_KEY_TAG  0x01
-#define SIGNATURE_TAG               0x02
-#define SYM_KEY_ENC_SESSION_KEY_TAG 0x03
-#define ONE_PASS_SIG_TAG            0x04
-#define SECRET_KEY_TAG              0x05
-#define PUBLIC_KEY_TAG              0x06
-#define SECRET_SUBKEY_TAG           0x07
-#define COMPRESSED_DATA_TAG         0x08
-#define SYM_ENC_DATA_TAG            0x09
-#define MARKER_TAG                  0x10
-#define LITERAL_DATA_TAG            0x11
-#define TRUST_TAG                   0x12
-#define USER_ID_TAG                 0x13
-#define PUBLIC_SUBKEY_TAG           0x14
+#define RESERVED_TAG                0
+#define PUBKEY_ENC_SESSION_KEY_TAG  1
+#define SIGNATURE_TAG               2
+#define SYM_KEY_ENC_SESSION_KEY_TAG 3
+#define ONE_PASS_SIG_TAG            4
+#define SECRET_KEY_TAG              5
+#define PUBLIC_KEY_TAG              6
+#define SECRET_SUBKEY_TAG           7
+#define COMPRESSED_DATA_TAG         8
+#define SYM_ENC_DATA_TAG            9
+#define MARKER_TAG                  10
+#define LITERAL_DATA_TAG            11
+#define TRUST_TAG                   12
+#define USER_ID_TAG                 13
+#define PUBLIC_SUBKEY_TAG           14
 // new format
-#define USER_ATTR_TAG               0x17
-#define SYM_ENC_INTEG_DATA_TAG      0x18
-#define MODIF_DETECT_CODE_TAG       0x19
+#define USER_ATTR_TAG               17
+#define SYM_ENC_INTEG_DATA_TAG      18
+#define MODIF_DETECT_CODE_TAG       19
 
 #define GET_OLD_FORMAT_TAG(tag) ( ((tag) & OLD_FORMAT_TAG_MASK) >> 2)
 #define GET_NEW_FORMAT_TAG(tag) ((tag) & NEW_FORMAT_TAG_MASK)
@@ -57,9 +57,9 @@
 #define IS_SECRET_KEY_PACKET(tag) (GET_TAG((tag)) == SECRET_KEY_TAG || GET_TAG((tag)) == SECRET_SUBKEY_TAG ? 1:0)
 
 /*----------------- String to Key  ------------------*/
-#define S2K_TYPE_SIMPLE              0x00
-#define S2K_TYPE_SALTED              0x01
-#define S2K_TYPE_ITERATED_SALTED     0x03
+#define S2K_TYPE_SIMPLE              0
+#define S2K_TYPE_SALTED              1
+#define S2K_TYPE_ITERATED_SALTED     3
 #define S2K_TYPE_GNUPG               101  // gnupg extension
 /*-------------------------------- ------------------*/
 

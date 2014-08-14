@@ -211,7 +211,7 @@ void pgp_print_packet(pgp_message* pkt)
             pgp_print_pubkey_packet((pgp_pubkey_packet*)pkt->pgp_packet);
             break;
         default:
-            printf("Uknown pakcet\n");
+            printf("Uknown packet\n");
     }
 }
 
@@ -379,7 +379,6 @@ int pgp_write_pubkey_packet(FILE* fp, pgp_pubkey_packet* pubkey_pkt)
 
     file_write_bytes(fp, 4, pubkey_pkt->creation_time);
     if (pubkey_pkt->version == 0x03 ) {
-printf("V3 ??\n");
         file_write_bytes(fp, 2, pubkey_pkt->validity_period);
     }
     
@@ -735,9 +734,9 @@ int pgp_read_seckey_data(FILE* fp, pgp_seckey_packet* seckey_packet, unsigned ch
     }
 
     // Verify checksum/sha1-hash
-    // TODO: missing all the other cases (checksum)
-    if (seckey_packet->s2k_usage == 0x00 || 
-        seckey_packet->s2k_usage == 0xff) {
+//    if (seckey_packet->s2k_usage == 0x00 || 
+//        seckey_packet->s2k_usage == 0xff) {
+    if(seckey_packet->s2k_usage != 0xfe) {
         // 2 octet checksum
         unsigned int chksum = 0;
         checksum_update(chksum, seckey_packet->seckey_data->rsa_d->length, 2);
@@ -758,7 +757,7 @@ int pgp_read_seckey_data(FILE* fp, pgp_seckey_packet* seckey_packet, unsigned ch
             return -1;
         }
 
-    } else if (seckey_packet->s2k_usage == 0xfe) {
+    } else { //if (seckey_packet->s2k_usage == 0xfe) {
         // 20 octet sha1 digest
         int r;
         ERR_load_crypto_strings();
@@ -821,9 +820,9 @@ int pgp_write_seckey_data(FILE* fp, pgp_seckey_packet* seckey_packet, unsigned c
     }
 
     // Calulate and write checksum/sha1-hash
-    // TODO: missing all the other cases (checksum)
-    if (seckey_packet->s2k_usage == 0x00 || 
-        seckey_packet->s2k_usage == 0xff) {
+//    if (seckey_packet->s2k_usage == 0x00 || 
+//        seckey_packet->s2k_usage == 0xff) {
+    if (seckey_packet->s2k_usage != 0xfe) {
         // 2 octet checksum
         unsigned int chksum = 0;
         checksum_update(chksum, seckey_data->rsa_d->length, 2);
@@ -844,7 +843,7 @@ int pgp_write_seckey_data(FILE* fp, pgp_seckey_packet* seckey_packet, unsigned c
         else // s2k_usage == 0xff
             file_write_bytes_encrypt(cipherctx, fp, 2, seckey_data->hash);
 
-    } else if (seckey_packet->s2k_usage == 0xfe) {
+    } else {//if (seckey_packet->s2k_usage == 0xfe) {
         // 20 octet sha1 digest
         int r;
         ERR_load_crypto_strings();
@@ -1186,7 +1185,7 @@ int pgp_read_packet(FILE* fp, void** pgp_packet, pgp_packet_header** hdr)
         pgp_read_seckey_packet(fp, &sec_packet);
         *pgp_packet = (void*)sec_packet;
     } else {// Unsupported packet, skip
-        printf("Skipping packet..\n");
+        printf("Skipping packet..tag = %.2x\n", tmp_hdr->ptag);
         *pgp_packet = NULL;
         *hdr = NULL;
         unsigned char* sink;
@@ -1205,10 +1204,14 @@ int pgp_read_packet(FILE* fp, void** pgp_packet, pgp_packet_header** hdr)
 
 int pgp_calc_packet_length (pgp_message* msg)
 {
-    if(msg->packet_type == SECRET_KEY_TAG || msg->packet_type == SECRET_KEY_TAG)
+    if(msg->packet_type == SECRET_KEY_TAG || msg->packet_type == SECRET_SUBKEY_TAG)
         pgp_calc_seckey_packet_length((pgp_seckey_packet*)msg->pgp_packet);
     else if(msg->packet_type == PUBLIC_KEY_TAG || msg->packet_type == PUBLIC_SUBKEY_TAG)
         pgp_calc_pubkey_packet_length((pgp_pubkey_packet*)msg->pgp_packet);
+    else {
+        printf("Unsupported packet type\n");
+        return -1;
+    }
 }
 
 int pgp_new_packet_header (pgp_message* msg, pgp_packet_header** hdr)
@@ -1350,7 +1353,7 @@ int pgp_write_msg_file(const char* filepath, pgp_message* msg)
     do {
         pgp_packet = current_msg->pgp_packet;
         pgp_packet_header* hdr;
-        pgp_new_packet_header(msg, &hdr);
+        pgp_new_packet_header(current_msg, &hdr);
         pgp_write_packet(fp, pgp_packet, hdr);
         pgp_free_packet_header(&hdr);
         current_msg = current_msg->next;
@@ -1383,7 +1386,7 @@ void pgp_free_msg(pgp_message** msg)
     for(i=0; i<packet_num; i++) {
 
         if (freeing_array[i]->packet_type == SECRET_KEY_TAG || 
-           freeing_array[i]->packet_type == SECRET_KEY_TAG)
+           freeing_array[i]->packet_type == SECRET_SUBKEY_TAG)
             pgp_free_seckey_packet(&(freeing_array[i]->pgp_packet));
 
         else if (freeing_array[i]->packet_type == PUBLIC_KEY_TAG || 
