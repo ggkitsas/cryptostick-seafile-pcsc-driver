@@ -1240,10 +1240,13 @@ int pgp_new_packet_header (pgp_message* msg, pgp_packet_header** hdr)
             tmp_hdr->ptag |= 0x01;
         else
             tmp_hdr->ptag |= 0x02;
+    } else {
+        printf("Unsupported packet type, %.2x\n", msg->packet_type);
+        return -1;
     }
 
-    
     *hdr = tmp_hdr;
+    return 0;
 }
 
 void pgp_free_packet_header(pgp_packet_header** hdr)
@@ -1305,7 +1308,7 @@ int pgp_write_packet(FILE* fp, void* pgp_packet, pgp_packet_header* hdr)
 int pgp_msg_add_packet(int packet_type, void* packet, pgp_message** msg)
 {
     if(*msg == NULL) {
-        *msg = (pgp_message*)malloc(sizeof(pgp_message));
+        *msg = (pgp_message*)calloc(1, sizeof(pgp_message));
         (*msg)->packet_type = packet_type;
         (*msg)->pgp_packet = packet;
         (*msg)->next = NULL;
@@ -1316,7 +1319,7 @@ int pgp_msg_add_packet(int packet_type, void* packet, pgp_message** msg)
             current_msg = current_msg->next;
         }
             
-        current_msg->next = (pgp_message*)malloc(sizeof(pgp_message));
+        current_msg->next = (pgp_message*)calloc(1, sizeof(pgp_message));
         current_msg->next->packet_type = packet_type;
         current_msg->next->pgp_packet = packet;
         current_msg->next->next = NULL;
@@ -1379,6 +1382,9 @@ int pgp_write_msg_file(const char* filepath, pgp_message* msg)
 
 void pgp_free_msg(pgp_message** msg)
 {
+    if(*msg == NULL)
+        return;
+
     int i;
     pgp_message* current_msg;
     pgp_message* next;
@@ -1410,4 +1416,5 @@ void pgp_free_msg(pgp_message** msg)
         free(freeing_array[i]);
         freeing_array[i] = NULL;
     }
+    *msg = NULL;
 }
