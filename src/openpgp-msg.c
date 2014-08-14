@@ -1302,10 +1302,15 @@ int pgp_msg_add_packet(int packet_type, void* packet, pgp_message** msg)
         (*msg)->pgp_packet = packet;
         (*msg)->next = NULL;
     } else {
-        (*msg)->next = (pgp_message*)malloc(sizeof(pgp_message));
-        (*msg)->next->packet_type = packet_type;
-        (*msg)->next->pgp_packet = packet;
-        (*msg)->next->next = NULL;
+        pgp_message* current_msg = *msg;
+        while(current_msg->next != NULL) {
+            current_msg = current_msg->next;
+        }
+            
+        current_msg->next = (pgp_message*)malloc(sizeof(pgp_message));
+        current_msg->next->packet_type = packet_type;
+        current_msg->next->pgp_packet = packet;
+        current_msg->next->next = NULL;
     }
 
     return 0;
