@@ -448,7 +448,7 @@ void pgp_free_pubkey_packet(void** pkt)
 {
     pgp_pubkey_packet* pub_pkt = (pgp_pubkey_packet*)(*pkt);
 
-    free( pub_pkt->validity_period );
+    // free( pub_pkt->validity_period );
     pgp_free_mpi( &(pub_pkt->modulus) );
     pgp_free_mpi( &(pub_pkt->exponent) );
 
@@ -1073,8 +1073,32 @@ tmp_pkt->s2k->count = 214; // Hardcoded for now
 
     // TODO: calculate sha-1 hash
     tmp_pkt->seckey_data->hash = (unsigned char*) calloc(1, sizeof(unsigned char)*HASH_SHA1_HASH_SIZE);
+
+    int r;
+    unsigned char md[20];
+    SHA_CTX shactx;
+    r = SHA1_Init(&shactx);
+    if(!r) {
+        ERR_error_string(ERR_get_error(), error);
+        printf("SHA1_Init failed %s\n",error);
+    }
+    SHA1_Update(&shactx, tmp_pkt->seckey_data->rsa_d->length, 2);
+    SHA1_Update(&shactx, tmp_pkt->seckey_data->rsa_d->value, 
+        bits2bytes( bytearr2uint(tmp_pkt->seckey_data->rsa_d->length, 2)));
+    SHA1_Update(&shactx, tmp_pkt->seckey_data->rsa_p->length, 2);
+    SHA1_Update(&shactx, tmp_pkt->seckey_data->rsa_p->value, 
+            bits2bytes( bytearr2uint(tmp_pkt->seckey_data->rsa_p->length, 2)));
+    SHA1_Update(&shactx, tmp_pkt->seckey_data->rsa_q->length, 2);
+    SHA1_Update(&shactx, tmp_pkt->seckey_data->rsa_q->value, 
+            bits2bytes( bytearr2uint(tmp_pkt->seckey_data->rsa_q->length, 2)));
+    SHA1_Update(&shactx, tmp_pkt->seckey_data->rsa_u->length, 2);
+    SHA1_Update(&shactx, tmp_pkt->seckey_data->rsa_u->value, 
+        bits2bytes( bytearr2uint(tmp_pkt->seckey_data->rsa_u->length, 2)));
+    SHA1_Final(md, &shactx);
+    memcpy(tmp_pkt->seckey_data->hash, md, HASH_SHA1_HASH_SIZE);
     
     *pkt = tmp_pkt;
+    return 0;
 }
 
 void pgp_free_seckey_packet(void** pkt)
@@ -1391,18 +1415,20 @@ void pgp_free_msg(pgp_message** msg)
 
     current_msg = *msg;
     int packet_num = 0;
+    // Caclulate the number of nodes
     do {
        current_msg = current_msg->next;
        packet_num++;
     } while (current_msg != NULL);
     pgp_message** freeing_array = (pgp_message**)malloc(sizeof(pgp_message*) * packet_num);
  
+    // save the nodes at @freeing_array in reverse order
     current_msg = *msg;
     for(i=packet_num-1; i>=0; i--) {
         freeing_array[i] = current_msg;
         current_msg = current_msg->next;
     }
-
+    // Free the nodes in reverse order
     for(i=0; i<packet_num; i++) {
 
         if (freeing_array[i]->packet_type == SECRET_KEY_TAG || 
