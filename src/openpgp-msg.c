@@ -122,7 +122,6 @@ int file_write_bytes(FILE* fp, unsigned int byte_num, unsigned char* byte_array)
         }
     }
     return 0;
-   
 }
 
 static
@@ -259,6 +258,7 @@ int pgp_calc_mpi_length(pgp_mpi* mpi)
 {
     int length = 2 // length
                 +bits2bytes(bytearr2uint(mpi->length, 2)); // value
+
     return length;
 }
 
@@ -433,10 +433,8 @@ int pgp_calc_pubkey_packet_length(pgp_pubkey_packet* pkt)
     int length = 1 // version
                 +4 // creation_time
                 +1 // algo
-                +2 // modulus mpi length field
-                +2 // exponent mpi length field
-                +bits2bytes(bytearr2uint(pkt->modulus->length, 2)) // modulus length
-                +bits2bytes(bytearr2uint(pkt->exponent->length, 2));// exponent length
+                +pgp_calc_mpi_length(pkt->modulus)  // modulus
+                +pgp_calc_mpi_length(pkt->exponent);// exponent
 
     if (pkt->version == 0x03)
         length += 2; // validity_period
@@ -620,10 +618,10 @@ void pgp_cipher_update( EVP_CIPHER_CTX* cipherctx,
 }
 
 static
-void pgp_cipher_finish(EVP_CIPHER_CTX* cipherctx)
+void pgp_cipher_finish(EVP_CIPHER_CTX* cipherctx /*, unsigned char* out_data, int* out_len*/)
 {
     if(cipherctx) { 
-        // EVP_CipherFinal_ex(cipherctx, dec_data, &dec_length);
+        //EVP_CipherFinal_ex(cipherctx, out_data, out_len);
         EVP_CIPHER_CTX_cleanup(cipherctx);
         EVP_CIPHER_CTX_free(cipherctx);
     }
@@ -732,7 +730,12 @@ int pgp_read_seckey_data(FILE* fp, pgp_seckey_packet* seckey_packet, unsigned ch
             file_read_bytes_decrypt_alloc(cipherctx, fp, 2, &(seckey_packet->seckey_data->hash));
         }
 
-        pgp_cipher_finish(cipherctx);
+/*
+        int blksize = get_block_size(seckey_packet->enc_algo[0]);
+        unsigned char* final_data = (unsigned char*)malloc(sizeof(unsigned char)*blksize);
+        int final_len;
+*/
+        pgp_cipher_finish(cipherctx /*, final_data, &final_len*/);
     }
 
     // Verify checksum/sha1-hash
@@ -857,6 +860,7 @@ int pgp_write_seckey_data(FILE* fp, pgp_seckey_packet* seckey_packet, unsigned c
         if(!r) {
             ERR_error_string(ERR_get_error(), error);
             printf("SHA1_Init failed %s\n",error);
+            return r;
         }
 
         SHA1_Update(&shactx, seckey_data->rsa_d->length, 2);
@@ -872,10 +876,19 @@ int pgp_write_seckey_data(FILE* fp, pgp_seckey_packet* seckey_packet, unsigned c
         SHA1_Update(&shactx, seckey_data->rsa_u->value, 
                 bits2bytes( bytearr2uint(seckey_data->rsa_u->length, 2)));
         SHA1_Final(md, &shactx);
-
         file_write_bytes_encrypt(cipherctx, fp, 20, seckey_data->hash);
     }
-    pgp_cipher_finish(cipherctx);
+
+    if (seckey_packet->s2k_usage != 0) {
+/*
+        int blksize = get_block_size(seckey_packet->enc_algo[0]);
+        unsigned char* final_data = (unsigned char*)malloc(sizeof(unsigned char)*blksize);
+        int final_len;
+*/
+        pgp_cipher_finish(cipherctx /*, final_data, &final_len*/);
+//        file_write_bytes(fp, final_len, final_data);
+    }
+    return 0;
 }
 
 
@@ -891,7 +904,13 @@ int pgp_calc_seckey_data_length(pgp_seckey_packet* pkt)
     else
         length += 2; // 2-octet checksum
 
-    return length;
+/*
+    if(pkt->s2k_usage != 0x00) {
+        int block_size = get_block_size(pkt->enc_algo[0]);
+        length = (length % block_size == 0 ) ? length : ((length/block_size) + 1) * block_size;
+    }
+*/
+    return length+12;
 }
 
 void pgp_free_seckey_data(pgp_seckey_data** data)
@@ -994,6 +1013,8 @@ int pgp_write_seckey_packet(FILE* fp, pgp_seckey_packet* seckey_pkt)
     }
 
     pgp_write_seckey_data(fp, seckey_pkt, key);
+
+    return 0;
 }
 
 
@@ -1009,7 +1030,7 @@ int pgp_new_seckey_packet(RSA* rsa, unsigned char* passphrase, pgp_seckey_packet
     tmp_pkt->s2k_usage = 0xfe;
 
     tmp_pkt->enc_algo = (unsigned char*)malloc(sizeof(unsigned char));
-    tmp_pkt->enc_algo[0] = SYM_AES128; // aes-128
+    tmp_pkt->enc_algo[0] = SYM_CAST5; //SYM_AES128; // aes-128
     tmp_pkt->s2k = (pgp_s2k*)malloc(sizeof(pgp_s2k));
     tmp_pkt->s2k->type = S2K_TYPE_ITERATED_SALTED; 
     tmp_pkt->s2k->hash_algo = HASH_SHA1;
@@ -1071,9 +1092,8 @@ tmp_pkt->s2k->count = 214; // Hardcoded for now
     }
     int2bytearr2(BN_num_bits(rsa_u), tmp_pkt->seckey_data->rsa_u->length);
 
-    // TODO: calculate sha-1 hash
+    // Calculate sha-1 hash
     tmp_pkt->seckey_data->hash = (unsigned char*) calloc(1, sizeof(unsigned char)*HASH_SHA1_HASH_SIZE);
-
     int r;
     unsigned char md[20];
     SHA_CTX shactx;
