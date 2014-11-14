@@ -4,8 +4,8 @@ LDFLAGS=-lpcsclite -lcrypto -lssl
 
 DEMOS_DIR=$(CURDIR)/demos
 
-LIB=-L"$(shell "pwd")/../pcsc-lite-1.8.11/build/lib" -L"/usr/lib/x86_64-linux-gnu"
-INC=-I"$(shell "pwd")/../pcsc-lite-1.8.11/build/include/PCSC" -I"$(shell "pwd")/inc"
+LIB=-L"/usr/lib/x86_64-linux-gnu"
+INC=-I/usr/include/PCSC/ -I"$(shell "pwd")/inc"
 
 COMMON_DEPS= errors.c common.c apdu.c iso7816.c openpgp.c card.c pcsc-wrapper.c cryptostick.c
 
