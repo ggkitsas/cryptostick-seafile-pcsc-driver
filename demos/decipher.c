@@ -71,8 +71,8 @@ int main()
     card_init(card);
 
 // PIN verification
-    unsigned char* pin = getline(6);
     printf("Please provide user PIN:\n");
+    unsigned char* pin = getline(6);
 //    r = csVerifyPIN(card, (unsigned char*)"123456", 6);
     r = csVerifyPIN(card, pin, strlen((const char*)pin));
     LOG_TEST_RET(r, "PIN verification failed");    
