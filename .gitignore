@@ -10,6 +10,6 @@ unblock
 verify_admin
 openpgp-file
 openssl_evp
-
+get-pin-counter
 tags
 *.swp

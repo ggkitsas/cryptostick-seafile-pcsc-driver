@@ -68,6 +68,11 @@ unblock:
 	$(CC) $(CFLAGS) $(INC) $(LIB) -o unblock $(COMMON_DEPS) $(DEMOS_DIR)/unblock.c $(LDFLAGS) && \
 	mv unblock ../
 
+get_pin_counter:
+	cd src && \
+	$(CC) $(CFLAGS) $(INC) $(LIB) -o get-pin-counter $(COMMON_DEPS) $(DEMOS_DIR)/get-pin-counter.c $(LDFLAGS) && \
+	mv get-pin-counter ../
+
 full_demo:
 	cd src && \
 	$(CC) $(CFLAGS) $(INC) $(LIB) -o full_demo $(COMMON_DEPS) $(DEMOS_DIR)/full_demo.c $(LDFLAGS) && \
